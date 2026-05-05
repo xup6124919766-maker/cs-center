@@ -2480,6 +2480,35 @@ app.post('/api/conversations/:id/mark-read', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── 全部標已讀（用於 LINE OA Manager 那邊已處理的情況）───
+app.post('/api/conversations/mark-all-read', (req, res) => {
+  const clientId = resolveClientId(req) ?? parseInt(req.body?.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const result = db.prepare(
+    "UPDATE conversations SET unread_count = 0, updated_at = ? WHERE client_id = ? AND unread_count > 0"
+  ).run(Date.now(), clientId);
+  emitToClient(clientId, 'conversations:bulk_read', { count: result.changes });
+  insertAuditLog({ user_id: req.session.user_id, action: 'mark_all_read', details: JSON.stringify({ count: result.changes }), ip: req.ip });
+  res.json({ ok: true, count: result.changes });
+});
+
+// ─── 批次標記為「在 LINE 處理過」（unread=0 + status=pending + 加標籤）───
+app.post('/api/conversations/mark-handled-externally', (req, res) => {
+  const clientId = resolveClientId(req) ?? parseInt(req.body?.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const { ids } = req.body || {};
+  const targetIds = Array.isArray(ids) && ids.length > 0
+    ? ids
+    : db.prepare('SELECT id FROM conversations WHERE client_id = ? AND status = ?').all(clientId, 'open').map(r => r.id);
+  if (!targetIds.length) return res.json({ ok: true, count: 0 });
+  const placeholders = targetIds.map(() => '?').join(',');
+  db.prepare(`UPDATE conversations SET unread_count = 0, status = 'pending', updated_at = ? WHERE client_id = ? AND id IN (${placeholders})`)
+    .run(Date.now(), clientId, ...targetIds);
+  emitToClient(clientId, 'conversations:bulk_handled', { ids: targetIds });
+  insertAuditLog({ user_id: req.session.user_id, action: 'mark_handled_externally', details: JSON.stringify({ count: targetIds.length }), ip: req.ip });
+  res.json({ ok: true, count: targetIds.length });
+});
+
 // ─── 模板建議（按最後一則 inbound 訊息模糊匹配）───
 app.get('/api/templates/suggest', (req, res) => {
   const convId = parseInt(req.query.conversation_id, 10);

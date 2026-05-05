@@ -268,6 +268,53 @@ body {
   letter-spacing: -0.3px;
 }
 
+.header-action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-action-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--primary);
+}
+
+.bulk-menu {
+  position: absolute;
+  top: 50px;
+  right: 12px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  min-width: 240px;
+  padding: 6px;
+}
+.bulk-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.bulk-menu button:hover {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
 #sidebar-filters {
   display: flex;
   gap: 4px;

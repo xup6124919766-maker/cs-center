@@ -1248,6 +1248,65 @@ const _exitBulkMode = () => {
 
 window._exitBulkMode = _exitBulkMode;
 
+// ─── Bulk menu / mark-all 操作 ───
+window._toggleBulkMenu = () => {
+  const menu = document.getElementById('bulk-menu');
+  if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+};
+
+window._markAllRead = async () => {
+  if (!confirm('確定把全部對話的紅色未讀數歸零？')) return;
+  try {
+    const r = await api('POST', '/api/conversations/mark-all-read', {});
+    if (typeof showToast === 'function') showToast(`已標 ${r.count || 0} 個對話為已讀`, 'success');
+    state.conversations.forEach(c => { c.unread_count = 0; });
+    if (typeof renderConvList === 'function') renderConvList();
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('失敗：' + e.message, 'error');
+  }
+  document.getElementById('bulk-menu').style.display = 'none';
+};
+
+window._markAllHandled = async () => {
+  if (!confirm('把所有「進行中」對話標為「LINE 已處理」？\n（status 變 pending、紅色未讀消失，視為你已從 LINE OA 那邊回覆）')) return;
+  try {
+    const r = await api('POST', '/api/conversations/mark-handled-externally', {});
+    if (typeof showToast === 'function') showToast(`已標 ${r.count || 0} 個為 LINE 處理過`, 'success');
+    state.conversations.forEach(c => {
+      if (c.status === 'open') { c.status = 'pending'; c.unread_count = 0; }
+    });
+    if (typeof renderConvList === 'function') renderConvList();
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('失敗：' + e.message, 'error');
+  }
+  document.getElementById('bulk-menu').style.display = 'none';
+};
+
+window._markActiveAsHandled = async () => {
+  if (!state.activeConvId) {
+    if (typeof showToast === 'function') showToast('請先選一個對話', 'info');
+    return;
+  }
+  try {
+    await api('POST', '/api/conversations/mark-handled-externally', { ids: [state.activeConvId] });
+    const c = state.conversations.find(x => x.id === state.activeConvId);
+    if (c) { c.status = 'pending'; c.unread_count = 0; }
+    if (typeof renderConvList === 'function') renderConvList();
+    if (typeof showToast === 'function') showToast('已標為 LINE 處理過', 'success');
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('失敗：' + e.message, 'error');
+  }
+  document.getElementById('bulk-menu').style.display = 'none';
+};
+
+// 點外側關 menu
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#bulk-menu') && !e.target.closest('#bulk-actions-btn')) {
+    const menu = document.getElementById('bulk-menu');
+    if (menu) menu.style.display = 'none';
+  }
+});
+
 window._bulkMarkRead = async () => {
   const ids = [..._bulkSelectedIds];
   await Promise.all(ids.map(id => api('POST', `/api/conversations/${id}/read`).catch(() => {})));

@@ -85,6 +85,12 @@
   <div id="sidebar" class="panel" data-panel="list">
     <div id="sidebar-header">
       <h1 id="sidebar-client-name">全部對話</h1>
+      <button class="header-action-btn" id="bulk-actions-btn" title="批次操作" onclick="window._toggleBulkMenu()">⋯</button>
+      <div id="bulk-menu" class="bulk-menu" style="display:none;">
+        <button onclick="window._markAllRead()">✓ 全部標已讀</button>
+        <button onclick="window._markAllHandled()">📌 全部標為「LINE 已處理」</button>
+        <button onclick="window._markActiveAsHandled()">✂️ 標記目前 active 對話已處理</button>
+      </div>
     </div>
     <div id="sidebar-filters">
       <button class="filter-btn active" data-status="">全部</button>
