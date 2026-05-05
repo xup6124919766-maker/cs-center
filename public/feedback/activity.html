@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>活動評價</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 24px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .brand {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 16px;
+    color: #1a1a2e;
+  }
+  .result-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .result-box.no-win {
+    background: #f5f5f7;
+    border-color: #e0e0e0;
+  }
+  .result-icon { font-size: 32px; margin-bottom: 6px; }
+  .result-prize { font-size: 16px; font-weight: 700; color: #1b7c3e; }
+  .result-desc { font-size: 12px; color: #666; margin-top: 2px; }
+  .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .star-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .star {
+    font-size: 36px;
+    cursor: pointer;
+    color: #ddd;
+    transition: all 0.1s;
+    line-height: 1;
+    user-select: none;
+  }
+  .star.lit { color: #f59e0b; transform: scale(1.1); }
+  .star:hover { transform: scale(1.15); }
+  .comment-wrap { margin-bottom: 16px; }
+  .comment-wrap label {
+    font-size: 12px; color: #888; display: block; margin-bottom: 6px;
+  }
+  textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px; font-size: 13px;
+    font-family: inherit; resize: vertical;
+    min-height: 72px; color: #333;
+    transition: border 0.15s;
+  }
+  textarea:focus { outline: none; border-color: #84fab0; }
+  .rating-hint {
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 16px;
+    min-height: 20px;
+    transition: color 0.15s;
+  }
+  .submit-btn {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #84fab0, #8fd3f4);
+    color: #333; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .submit-btn:not(:disabled):hover { opacity: 0.85; }
+  .thank-you {
+    display: none;
+    text-align: center;
+    padding: 16px 0 8px;
+  }
+  .thank-you .ty-icon { font-size: 48px; margin-bottom: 10px; }
+  .thank-you p { font-size: 15px; color: #444; line-height: 1.6; }
+  .err { color: #d00; font-size: 13px; margin-top: 8px; text-align: center; }
+  .loading { text-align: center; color: #999; font-size: 14px; padding: 20px 0; }
+
+  .act-name {
+    text-align: center;
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loadingState" class="loading">載入中...</div>
+
+  <div id="mainContent" style="display:none">
+    <div class="brand" id="brandName"></div>
+    <div class="act-name" id="actName"></div>
+    <h1>請給這次體驗評分</h1>
+
+    <div id="resultBox" style="display:none"></div>
+
+    <div class="label">您的滿意度</div>
+    <div class="star-row" id="starRow">
+      <span class="star" data-val="1" onclick="setStar(1)">★</span>
+      <span class="star" data-val="2" onclick="setStar(2)">★</span>
+      <span class="star" data-val="3" onclick="setStar(3)">★</span>
+      <span class="star" data-val="4" onclick="setStar(4)">★</span>
+      <span class="star" data-val="5" onclick="setStar(5)">★</span>
+    </div>
+    <div class="rating-hint" id="ratingHint">請點選星星給分</div>
+
+    <div class="comment-wrap">
+      <label>留下您的想法（選填）</label>
+      <textarea id="comment" placeholder="告訴我們這次活動的感受..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled onclick="submit()">送出評價</button>
+    <div class="err" id="errMsg"></div>
+  </div>
+
+  <div class="thank-you" id="thankYou">
+    <div class="ty-icon">🙏</div>
+    <p>感謝您的評價！<br>我們會繼續努力提升體驗。</p>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const activityId = params.get('activity_id');
+const participationId = params.get('participation_id');
+const customerId = params.get('customer_id');
+let selectedRating = 0;
+
+const HINTS = ['', '非常不滿意', '有點失望', '還算普通', '蠻滿意的', '超棒！非常滿意'];
+
+const loadInfo = async () => {
+  if (!activityId) {
+    document.getElementById('loadingState').textContent = '連結無效';
+    return;
+  }
+  try {
+    const qs = participationId ? `?participation_id=${encodeURIComponent(participationId)}` : '';
+    const r = await fetch(`/api/feedback/activity/${activityId}/info${qs}`);
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('loadingState').textContent = data.error || '載入失敗';
+      return;
+    }
+    document.getElementById('brandName').textContent = data.business || '客服中心';
+    document.getElementById('actName').textContent = data.name || '';
+
+    // 顯示中獎結果
+    if (data.participation) {
+      const box = document.getElementById('resultBox');
+      box.style.display = 'block';
+      if (data.participation.is_winner && data.participation.prize_name) {
+        box.className = 'result-box';
+        box.innerHTML = `
+          <div class="result-icon">🎉</div>
+          <div class="result-prize">${escHtml(data.participation.prize_name)}</div>
+          ${data.participation.prize_desc ? `<div class="result-desc">${escHtml(data.participation.prize_desc)}</div>` : ''}
+        `;
+      } else {
+        box.className = 'result-box no-win';
+        box.innerHTML = `
+          <div class="result-icon">🥲</div>
+          <div class="result-prize" style="color:#666">銘謝惠顧</div>
+          <div class="result-desc">感謝您的參與！</div>
+        `;
+      }
+    }
+
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+  } catch {
+    document.getElementById('loadingState').textContent = '網路錯誤，請重新整理';
+  }
+};
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setStar(val) {
+  selectedRating = val;
+  document.querySelectorAll('.star').forEach((s, i) => {
+    s.classList.toggle('lit', i < val);
+  });
+  document.getElementById('ratingHint').textContent = HINTS[val] || '';
+  document.getElementById('ratingHint').style.color = val >= 4 ? '#1b7c3e' : (val <= 2 ? '#b00' : '#666');
+  document.getElementById('submitBtn').disabled = false;
+}
+
+async function submit() {
+  if (!selectedRating) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '送出中...';
+  document.getElementById('errMsg').textContent = '';
+
+  const body = { rating: selectedRating };
+  if (participationId) body.participation_id = parseInt(participationId, 10);
+  if (customerId) body.customer_id = parseInt(customerId, 10);
+  const comment = document.getElementById('comment').value.trim();
+  if (comment) body.comment = comment;
+
+  try {
+    const r = await fetch(`/api/feedback/activity/${activityId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('errMsg').textContent = data.error || '送出失敗，請稍後再試';
+      btn.disabled = false;
+      btn.textContent = '送出評價';
+      return;
+    }
+    document.getElementById('mainContent').style.display = 'none';
+    document.getElementById('thankYou').style.display = 'block';
+    setTimeout(() => {
+      try { window.close(); } catch {}
+    }, 3000);
+  } catch {
+    document.getElementById('errMsg').textContent = '網路錯誤，請稍後再試';
+    btn.disabled = false;
+    btn.textContent = '送出評價';
+  }
+}
+
+loadInfo();
+</script>
+</body>
+</html>

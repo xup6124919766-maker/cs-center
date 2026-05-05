@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧客旅程 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-green { background: #34c759; color: #fff; }
+  .btn-gray { background: #e5e5ea; color: #333; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+  .badge-draft { background: #e5e5ea; color: #666; }
+  .badge-active { background: #d1f7e0; color: #1b7c3e; }
+  .badge-paused { background: #fff3cd; color: #856404; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 640px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 40px auto; }
+  #msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 14px; }
+  #msg.ok { background: #d1f7e0; color: #1b7c3e; display: block; }
+  #msg.err { background: #ffe0e0; color: #b00; display: block; }
+  .step-row { background: #f8f8f8; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: flex-start; }
+  .step-row .step-num { background: #5856d6; color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 2px; }
+  .templates-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .tpl-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; cursor: pointer; font-size: 13px; }
+  .tpl-card:hover { border-color: #5856d6; background: #f5f4ff; }
+  .tpl-card strong { display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ecommerce.html">訂單</a>
+  <a href="/admin/rich-menus.html">圖文選單</a>
+  <a href="/admin/journeys.html" class="active">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div id="msg"></div>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2 style="margin:0">顧客旅程</h2>
+    <button class="btn btn-primary" onclick="openCreate()">+ 新增旅程</button>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>名稱</th><th>觸發類型</th><th>狀態</th><th>加入數</th><th>完成數</th><th>操作</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>新增旅程</h3>
+    <p style="font-size:13px;color:#666;margin-top:0">選擇範本快速開始，或手動設定：</p>
+    <div class="templates-grid" id="tplGrid"></div>
+    <hr>
+    <div class="form-row">
+      <div><label>旅程名稱</label><input id="f_name" placeholder="新客歡迎序列"></div>
+      <div><label>觸發類型</label>
+        <select id="f_trigger">
+          <option value="customer_created">顧客建立</option>
+          <option value="tag_added">加標籤</option>
+          <option value="order_paid">訂單付款</option>
+          <option value="cart_abandoned">廢棄購物車</option>
+          <option value="birthday">生日</option>
+          <option value="custom_event">自訂事件</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row single">
+      <div><label>觸發條件（JSON，如 tag_added 需 {"tag":"VIP"}）</label><input id="f_tconfig" placeholder="{}"></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <strong>步驟</strong>
+      <button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="addStep()">+ 加步驟</button>
+    </div>
+    <div id="stepsContainer"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-gray" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveJourney()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let journeys = [];
+let templates = {};
+
+const show = (msg, type) => { const el = document.getElementById('msg'); el.textContent = msg; el.className = type; };
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+};
+
+const triggerLabels = {
+  customer_created: '顧客建立', tag_added: '加標籤', order_paid: '訂單付款',
+  cart_abandoned: '廢棄購物車', birthday: '生日', custom_event: '自訂事件',
+};
+
+const load = async () => {
+  const data = await api('GET', '/api/journeys');
+  journeys = data.journeys || [];
+  render();
+};
+
+const render = () => {
+  const tbody = document.getElementById('listBody');
+  if (!journeys.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:#999;text-align:center">尚無旅程</td></tr>'; return; }
+  tbody.innerHTML = journeys.map(j => `
+    <tr>
+      <td>${j.name}</td>
+      <td>${triggerLabels[j.trigger_type] || j.trigger_type}</td>
+      <td><span class="badge badge-${j.status}">${j.status}</span></td>
+      <td>${j.total_enrolled}</td>
+      <td>${j.total_completed}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${j.status !== 'active' ? `<button class="btn btn-green" style="padding:3px 8px;font-size:12px" onclick="activateJourney(${j.id})">啟動</button>` : ''}
+        ${j.status === 'active' ? `<button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="pauseJourney(${j.id})">暫停</button>` : ''}
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="viewStats(${j.id})">統計</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="viewRuns(${j.id})">進行中</button>
+      </td>
+    </tr>
+  `).join('');
+};
+
+const loadTemplates = async () => {
+  const data = await api('GET', '/api/journeys/templates/list');
+  templates = {};
+  for (const tpl of (data.templates || [])) templates[tpl.key] = tpl;
+
+  const grid = document.getElementById('tplGrid');
+  grid.innerHTML = Object.entries(templates).map(([key, tpl]) => `
+    <div class="tpl-card" onclick="applyTemplate('${key}')">
+      <strong>${tpl.name}</strong>
+      <span style="color:#888;font-size:12px">${tpl.description}</span>
+    </div>
+  `).join('');
+};
+
+const applyTemplate = (key) => {
+  const tpl = templates[key];
+  if (!tpl) return;
+  document.getElementById('f_name').value = tpl.name;
+  document.getElementById('f_trigger').value = tpl.trigger_type;
+  document.getElementById('f_tconfig').value = JSON.stringify(tpl.trigger_config || {});
+  // 清空並填充步驟
+  document.getElementById('stepsContainer').innerHTML = '';
+  for (const step of (tpl.steps_json || [])) {
+    addStep(step);
+  }
+};
+
+let stepIndex = 0;
+const addStep = (defaultStep = null) => {
+  const idx = stepIndex++;
+  const div = document.createElement('div');
+  div.className = 'step-row';
+  div.id = `step_${idx}`;
+  const type = defaultStep?.type || 'send_message';
+  const config = defaultStep?.config ? JSON.stringify(defaultStep.config) : '{}';
+  div.innerHTML = `
+    <div class="step-num">${idx + 1}</div>
+    <div style="flex:1">
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <select style="width:160px;padding:5px" onchange="updateStepLabel(${idx}, this)">
+          <option value="send_message" ${type==='send_message'?'selected':''}>發訊息</option>
+          <option value="wait" ${type==='wait'?'selected':''}>等待</option>
+          <option value="add_tag" ${type==='add_tag'?'selected':''}>加標籤</option>
+          <option value="remove_tag" ${type==='remove_tag'?'selected':''}>移標籤</option>
+          <option value="condition" ${type==='condition'?'selected':''}>條件</option>
+          <option value="add_to_journey" ${type==='add_to_journey'?'selected':''}>加入旅程</option>
+        </select>
+        <button class="btn btn-red" style="padding:2px 8px;font-size:12px" onclick="document.getElementById('step_${idx}').remove()">✕</button>
+      </div>
+      <textarea style="width:100%;height:50px;font-size:13px;box-sizing:border-box" placeholder='{"content":"訊息內容"}'>${config}</textarea>
+    </div>
+  `;
+  document.getElementById('stepsContainer').appendChild(div);
+};
+
+const openCreate = async () => {
+  stepIndex = 0;
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_trigger').value = 'customer_created';
+  document.getElementById('f_tconfig').value = '{}';
+  document.getElementById('stepsContainer').innerHTML = '';
+  await loadTemplates();
+  document.getElementById('overlay').style.display = 'block';
+};
+const closeModal = () => { document.getElementById('overlay').style.display = 'none'; };
+
+const saveJourney = async () => {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { alert('請填名稱'); return; }
+
+  const stepEls = document.querySelectorAll('.step-row');
+  const steps = [];
+  for (const el of stepEls) {
+    const type = el.querySelector('select').value;
+    const configText = el.querySelector('textarea').value.trim();
+    let config = {};
+    try { config = JSON.parse(configText || '{}'); } catch { alert('步驟 JSON 格式錯誤：' + configText.slice(0,50)); return; }
+    steps.push({ type, config });
+  }
+  if (!steps.length) { alert('請至少加一個步驟'); return; }
+
+  let triggerConfig = {};
+  try { triggerConfig = JSON.parse(document.getElementById('f_tconfig').value || '{}'); } catch {}
+
+  const r = await api('POST', '/api/journeys', {
+    name, trigger_type: document.getElementById('f_trigger').value,
+    trigger_config: triggerConfig, steps,
+  });
+  if (r.ok) { show('旅程建立成功', 'ok'); closeModal(); load(); } else { show(r.error, 'err'); }
+};
+
+const activateJourney = async (id) => {
+  const r = await api('POST', `/api/journeys/${id}/activate`, {});
+  if (r.ok) { show('旅程已啟動', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+const pauseJourney = async (id) => {
+  const r = await api('POST', `/api/journeys/${id}/pause`, {});
+  if (r.ok) { show('旅程已暫停', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+
+const viewStats = async (id) => {
+  const r = await api('GET', `/api/journeys/${id}/stats`);
+  alert(`旅程「${r.name}」統計：\n加入：${r.total_enrolled}\n完成：${r.total_completed}\n完成率：${r.completion_rate_pct}%`);
+};
+
+const viewRuns = async (id) => {
+  const r = await api('GET', `/api/journeys/${id}/runs?status=running`);
+  const runs = r.runs || [];
+  alert(`進行中旅程 (${runs.length} 筆)：\n${runs.slice(0,5).map(r => `  ${r.customer_name} — 步驟${r.current_step}`).join('\n') || '無'}`);
+};
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "梵森客服中心",
+  "short_name": "梵森客服",
+  "description": "梵森 Faisem 客服協作平台",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F5F7FA",
+  "theme_color": "#06C755",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "/icons/icon.svg",         "sizes": "any",     "type": "image/svg+xml" },
+    { "src": "/icons/icon-192.png",     "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png",     "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable.png","sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "客服收件匣",
+      "url": "/index.html",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "儀表板",
+      "url": "/dashboard.html"
+    }
+  ]
+}

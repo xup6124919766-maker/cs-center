@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>知識庫 — 客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { overflow: auto; }
+    #app { display: block; min-height: 100vh; }
+
+    .kb-wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+    }
+
+    .kb-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .kb-title { font-size: 20px; font-weight: 700; }
+    .kb-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    .kb-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .kb-search-input {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.15s;
+    }
+    .kb-search-input:focus { border-color: var(--primary); }
+
+    .kb-filter-select {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .kb-stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      flex-wrap: wrap;
+    }
+    .kb-stat { font-size: 13px; color: var(--text-sub); }
+    .kb-stat strong { color: var(--text); font-size: 16px; margin-right: 4px; }
+
+    /* QA Table */
+    .kb-table { width: 100%; border-collapse: collapse; }
+    .kb-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    .kb-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-light);
+      font-size: 13px;
+      vertical-align: top;
+    }
+    .kb-table tr:hover td { background: var(--bg); }
+
+    .qa-question { font-weight: 500; color: var(--text); }
+    .qa-answer   { color: var(--text-sub); margin-top: 2px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .qa-category {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--border-light);
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .qa-hit { color: var(--primary); font-weight: 600; }
+
+    .qa-actions { display: flex; gap: 6px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 90%;
+      max-width: 520px;
+      box-shadow: var(--shadow-md);
+    }
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+    .modal-field { margin-bottom: 12px; }
+    .modal-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .modal-field input,
+    .modal-field textarea,
+    .modal-field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      background: var(--bg);
+    }
+    .modal-field textarea { resize: vertical; min-height: 80px; }
+    .modal-field input:focus,
+    .modal-field textarea:focus,
+    .modal-field select:focus { border-color: var(--primary); background: #fff; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+    /* Import area */
+    .import-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 12px;
+    }
+    .import-area:hover { border-color: var(--primary); color: var(--primary); }
+    .import-area input { display: none; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--text); color: #fff;
+      padding: 12px 20px; border-radius: var(--radius);
+      font-size: 13px; z-index: 9999; display: none;
+      box-shadow: var(--shadow-md);
+    }
+    #toast.show { display: block; animation: fadeIn 0.2s; }
+    #toast.success { background: #43a047; }
+    #toast.error { background: var(--err); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .empty-row td { text-align: center; padding: 32px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+  <div class="logo">📚 <span>知識庫</span></div>
+  <div id="topbar-right">
+    <span id="user-info"></span>
+    <a href="/" style="font-size:12px; color:var(--text-sub); text-decoration:none; border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm);">客服</a>
+    <a href="/dashboard.html" style="font-size:12px; color:var(--text-sub); text-decoration:none; border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm);">儀表板</a>
+    <a href="/admin.html" id="admin-link" style="display:none; font-size:12px; color:var(--text-sub); text-decoration:none; border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm);">設定</a>
+    <button id="logout-btn">登出</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="kb-wrap">
+
+    <!-- Header -->
+    <div class="kb-header">
+      <div>
+        <div class="kb-title">知識庫管理</div>
+        <div class="kb-sub">管理常見問題與標準回覆，AI 草擬時會自動引用</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary" id="import-btn">匯入 CSV</button>
+        <button class="btn btn-primary"   id="add-btn">+ 新增</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="kb-stats-bar" id="stats-bar">
+      <div class="kb-stat"><strong id="stat-total">—</strong>筆資料</div>
+      <div class="kb-stat"><strong id="stat-categories">—</strong>個分類</div>
+      <div class="kb-stat">命中次數最高：<strong id="stat-top-q" style="font-size:13px;">—</strong></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="kb-toolbar">
+      <input type="text" class="kb-search-input" id="search-input" placeholder="搜尋問題或回覆…" />
+      <select class="kb-filter-select" id="category-filter">
+        <option value="">全部分類</option>
+      </select>
+      <div style="margin-left:auto; font-size:12px; color:var(--muted);" id="result-count"></div>
+    </div>
+
+    <!-- Table -->
+    <div style="overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);">
+      <table class="kb-table">
+        <thead>
+          <tr>
+            <th>問題</th>
+            <th>分類</th>
+            <th style="text-align:right;">命中</th>
+            <th style="width:90px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="qa-tbody">
+          <tr class="empty-row"><td colspan="4">載入中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- 新增/編輯 Modal -->
+<div class="modal-overlay hidden" id="edit-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">新增知識庫</div>
+    <input type="hidden" id="edit-id" value="" />
+    <div class="modal-field">
+      <label>問題 *</label>
+      <input type="text" id="edit-question" placeholder="例如：如何查詢訂單狀態？" />
+    </div>
+    <div class="modal-field">
+      <label>標準回覆 *</label>
+      <textarea id="edit-answer" rows="4" placeholder="例如：您好，請提供訂單編號，我為您查詢…"></textarea>
+    </div>
+    <div class="modal-field">
+      <label>分類</label>
+      <input type="text" id="edit-category" placeholder="例如：訂單、物流、退換貨" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-cancel">取消</button>
+      <button class="btn btn-primary"   id="modal-save">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯入 Modal -->
+<div class="modal-overlay hidden" id="import-modal">
+  <div class="modal-box">
+    <div class="modal-title">匯入 CSV</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+      CSV 格式：第一列為標題（question,answer,category），每列一筆。
+    </p>
+    <div class="import-area" id="import-drop" onclick="document.getElementById('csv-file').click()">
+      點擊選擇 CSV 檔案，或拖曳到此處
+      <input type="file" id="csv-file" accept=".csv,text/csv" />
+    </div>
+    <div id="import-preview" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>
+    <div id="import-items-list" style="max-height:200px;overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="import-cancel">取消</button>
+      <button class="btn btn-primary"   id="import-confirm" disabled>匯入</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+const api = async (method, path, body) => {
+  const opts = { method, headers: { 'content-type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+};
+
+const toast = (msg, type = '') => {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  setTimeout(() => { el.className = ''; }, 3000);
+};
+
+const esc = (s) => {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+};
+
+let state = {
+  me: null,
+  clientId: null,
+  pairs: [],
+  searchTimer: null,
+  importItems: [],
+};
+
+const init = async () => {
+  try {
+    state.me = await api('GET', '/api/me');
+  } catch { location.href = '/login.html'; return; }
+
+  $('#user-info').textContent = `${state.me.username} (${state.me.role})`;
+  if (state.me.role === 'admin') $('#admin-link').style.display = '';
+
+  state.clientId = state.me.client_id;
+  if (!state.clientId) {
+    // super admin：用 URL param 或第一個 client
+    const params = new URLSearchParams(location.search);
+    state.clientId = params.get('client_id') ? parseInt(params.get('client_id')) : 1;
+  }
+
+  $('#logout-btn').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.href = '/login.html';
+  });
+
+  bindModalEvents();
+  bindImportEvents();
+  bindSearchEvents();
+
+  await loadQaPairs();
+};
+
+const loadQaPairs = async (opts = {}) => {
+  const { search, category } = opts;
+  const qs = new URLSearchParams({ client_id: state.clientId });
+  if (search) qs.set('search', search);
+  if (category) qs.set('category', category);
+  qs.set('limit', '200');
+
+  try {
+    const data = await api('GET', `/api/qa-pairs?${qs}`);
+    state.pairs = data.qa_pairs || [];
+    renderTable();
+    updateStats();
+  } catch (e) {
+    toast('載入失敗：' + e.message, 'error');
+  }
+};
+
+const renderTable = () => {
+  const tbody = $('#qa-tbody');
+  const pairs = state.pairs;
+
+  $('#result-count').textContent = `共 ${pairs.length} 筆`;
+
+  if (!pairs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">尚無資料，點擊「新增」建立第一筆</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = pairs.map(p => `
+    <tr data-id="${p.id}">
+      <td>
+        <div class="qa-question">${esc(p.question)}</div>
+        <div class="qa-answer">${esc(p.answer)}</div>
+      </td>
+      <td>
+        ${p.category ? `<span class="qa-category">${esc(p.category)}</span>` : '<span style="color:var(--muted);font-size:12px;">—</span>'}
+      </td>
+      <td style="text-align:right;">
+        <span class="qa-hit">${p.hit_count || 0}</span>
+      </td>
+      <td>
+        <div class="qa-actions">
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="editPair(${p.id})">編輯</button>
+          <button class="btn" style="padding:4px 10px;font-size:11px;background:var(--err);color:#fff;border:none;" onclick="deletePair(${p.id})">刪</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+};
+
+const updateStats = () => {
+  const pairs = state.pairs;
+  $('#stat-total').textContent = pairs.length;
+
+  const cats = [...new Set(pairs.map(p => p.category).filter(Boolean))];
+  $('#stat-categories').textContent = cats.length;
+
+  // 更新分類過濾器
+  const sel = $('#category-filter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部分類</option>' +
+    cats.map(c => `<option value="${esc(c)}" ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
+
+  // top hit
+  const top = pairs.slice().sort((a, b) => (b.hit_count || 0) - (a.hit_count || 0))[0];
+  $('#stat-top-q').textContent = top
+    ? `${top.question.slice(0, 20)}${top.question.length > 20 ? '…' : ''} (${top.hit_count}次)`
+    : '—';
+};
+
+const bindSearchEvents = () => {
+  $('#search-input').addEventListener('input', (e) => {
+    clearTimeout(state.searchTimer);
+    state.searchTimer = setTimeout(() => {
+      loadQaPairs({ search: e.target.value.trim() || undefined, category: $('#category-filter').value || undefined });
+    }, 300);
+  });
+
+  $('#category-filter').addEventListener('change', (e) => {
+    loadQaPairs({ search: $('#search-input').value.trim() || undefined, category: e.target.value || undefined });
+  });
+};
+
+// ─── Modal ───
+const openModal = (pair = null) => {
+  $('#modal-title').textContent = pair ? '編輯知識庫' : '新增知識庫';
+  $('#edit-id').value     = pair?.id || '';
+  $('#edit-question').value = pair?.question || '';
+  $('#edit-answer').value   = pair?.answer   || '';
+  $('#edit-category').value = pair?.category || '';
+  $('#edit-modal').classList.remove('hidden');
+  $('#edit-question').focus();
+};
+
+const closeModal = () => $('#edit-modal').classList.add('hidden');
+
+const bindModalEvents = () => {
+  $('#add-btn').addEventListener('click', () => openModal());
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#edit-modal').addEventListener('click', (e) => { if (e.target === $('#edit-modal')) closeModal(); });
+
+  $('#modal-save').addEventListener('click', async () => {
+    const id       = $('#edit-id').value;
+    const question = $('#edit-question').value.trim();
+    const answer   = $('#edit-answer').value.trim();
+    const category = $('#edit-category').value.trim() || null;
+
+    if (!question || !answer) { toast('問題和回覆不可為空', 'error'); return; }
+
+    try {
+      if (id) {
+        await api('PUT', `/api/qa-pairs/${id}`, { question, answer, category, client_id: state.clientId });
+        toast('已更新', 'success');
+      } else {
+        await api('POST', '/api/qa-pairs', { question, answer, category, client_id: state.clientId });
+        toast('已新增', 'success');
+      }
+      closeModal();
+      await loadQaPairs();
+    } catch (e) {
+      toast('儲存失敗：' + e.message, 'error');
+    }
+  });
+};
+
+const editPair = async (id) => {
+  const pair = state.pairs.find(p => p.id === id);
+  if (pair) openModal(pair);
+};
+
+const deletePair = async (id) => {
+  if (!confirm('確定刪除這筆資料？')) return;
+  try {
+    await api('DELETE', `/api/qa-pairs/${id}?client_id=${state.clientId}`);
+    toast('已刪除', 'success');
+    await loadQaPairs();
+  } catch (e) {
+    toast('刪除失敗：' + e.message, 'error');
+  }
+};
+
+// ─── CSV 匯入 ───
+const bindImportEvents = () => {
+  $('#import-btn').addEventListener('click', () => {
+    state.importItems = [];
+    $('#import-preview').textContent = '';
+    $('#import-items-list').innerHTML = '';
+    $('#import-confirm').disabled = true;
+    $('#import-modal').classList.remove('hidden');
+  });
+  $('#import-cancel').addEventListener('click', () => $('#import-modal').classList.add('hidden'));
+  $('#import-modal').addEventListener('click', (e) => { if (e.target === $('#import-modal')) $('#import-modal').classList.add('hidden'); });
+
+  const csvFile = $('#csv-file');
+  csvFile.addEventListener('change', (e) => handleCsvFile(e.target.files[0]));
+
+  const drop = $('#import-drop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.borderColor = 'var(--primary)'; });
+  drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.style.borderColor = '';
+    const file = e.dataTransfer.files[0];
+    if (file) handleCsvFile(file);
+  });
+
+  $('#import-confirm').addEventListener('click', async () => {
+    if (!state.importItems.length) return;
+    try {
+      const result = await api('POST', '/api/qa-pairs/import', { items: state.importItems, client_id: state.clientId });
+      toast(`匯入完成：${result.inserted} 筆，失敗 ${result.errors.length} 筆`, 'success');
+      $('#import-modal').classList.add('hidden');
+      await loadQaPairs();
+    } catch (e) {
+      toast('匯入失敗：' + e.message, 'error');
+    }
+  });
+};
+
+const handleCsvFile = (file) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) { toast('CSV 為空', 'error'); return; }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+    const qIdx = headers.indexOf('question');
+    const aIdx = headers.indexOf('answer');
+    const cIdx = headers.indexOf('category');
+
+    if (qIdx < 0 || aIdx < 0) { toast('CSV 需有 question 和 answer 欄', 'error'); return; }
+
+    const items = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i]);
+      if (!cols[qIdx]?.trim() || !cols[aIdx]?.trim()) continue;
+      items.push({
+        question: cols[qIdx].trim(),
+        answer:   cols[aIdx].trim(),
+        category: cIdx >= 0 ? (cols[cIdx]?.trim() || null) : null,
+      });
+    }
+
+    state.importItems = items;
+    $('#import-preview').textContent = `解析出 ${items.length} 筆資料`;
+    $('#import-items-list').innerHTML = items.slice(0, 5).map(it =>
+      `<div style="padding:6px;border-bottom:1px solid var(--border-light);font-size:12px;"><b>${esc(it.question)}</b><br><span style="color:var(--muted)">${esc(it.answer.slice(0, 60))}...</span></div>`
+    ).join('') + (items.length > 5 ? `<div style="padding:6px;font-size:12px;color:var(--muted)">...以及 ${items.length - 5} 筆</div>` : '');
+    $('#import-confirm').disabled = items.length === 0;
+  };
+  reader.readAsText(file, 'UTF-8');
+};
+
+const parseCsvLine = (line) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQuotes = !inQuotes; }
+    else if (line[i] === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += line[i]; }
+  }
+  result.push(current);
+  return result;
+};
+
+init();
+</script>
+</body>
+</html>

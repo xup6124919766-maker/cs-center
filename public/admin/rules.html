@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>規則引擎 — 客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { overflow: auto; }
+    #app { display: block; min-height: 100vh; }
+    .admin-wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .rule-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+    .rule-item:last-child { border-bottom: none; }
+    .rule-type-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+    .badge-keyword_reply  { background: #e8f5e9; color: #2e7d32; }
+    .badge-auto_tag       { background: #e3f2fd; color: #1565c0; }
+    .badge-comment_to_dm  { background: #fff3e0; color: #e65100; }
+    .badge-alert        { background: #ffebee; color: #c62828; }
+    .rule-name { font-weight: 600; flex: 1; font-size: 14px; }
+    .rule-meta { font-size: 12px; color: var(--muted); }
+    .rule-actions { display: flex; gap: 6px; }
+    .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 13px; font-family: inherit; }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger  { background: var(--err); color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .test-result { margin-top: 12px; padding: 12px; border-radius: var(--radius-sm); font-size: 13px; }
+    .test-triggered  { background: #e8f5e9; color: #2e7d32; }
+    .test-not-triggered { background: #ffebee; color: #c62828; }
+    .toggle { width: 40px; height: 22px; background: var(--border); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; border: none; }
+    .toggle.on { background: var(--primary); }
+    .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+    .toggle.on::after { left: 21px; }
+    .nav-links { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .nav-links a { font-size: 12px; color: var(--text-sub); text-decoration: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: var(--radius-sm); }
+    .nav-links a:hover { background: var(--border-light); }
+  </style>
+</head>
+<body>
+<div id="app">
+<div class="admin-wrap">
+  <div class="nav-links">
+    <a href="/">主控台</a>
+    <a href="/admin.html">設定</a>
+    <a href="/admin/rules.html">規則</a>
+    <a href="/admin/integrations.html">整合</a>
+    <a href="/admin/broadcasts.html">廣播</a>
+    <a href="/admin/analytics.html">報表</a>
+  </div>
+  <div class="page-title">規則引擎</div>
+  <div class="page-sub">設定自動回覆、標籤和警示規則，訊息符合關鍵字時自動觸發</div>
+
+  <div style="display:flex; justify-content:flex-end; margin-bottom:16px; gap:8px;">
+    <button class="btn btn-ghost" onclick="openTestModal()">測試規則</button>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ 新增規則</button>
+  </div>
+
+  <div class="card">
+    <div id="rules-list"><p style="color:var(--muted);text-align:center;padding:20px 0;">載入中...</p></div>
+  </div>
+</div>
+</div>
+
+<!-- 新增/編輯 Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">新增規則</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>規則名稱</label>
+        <input type="text" id="f-name" placeholder="例：客訴警示" />
+      </div>
+      <div class="form-group">
+        <label>規則類型</label>
+        <select id="f-type" onchange="onTypeChange()">
+          <option value="alert">對話警示 (alert)</option>
+          <option value="auto_tag">自動標籤 (auto_tag)</option>
+          <option value="keyword_reply">自動回覆 (keyword_reply)</option>
+          <option value="comment_to_dm">留言自動回覆 DM (comment_to_dm)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>觸發關鍵字（以逗號分隔）</label>
+        <input type="text" id="f-keywords" placeholder="退費,律師,消基會" />
+      </div>
+      <div class="form-group">
+        <label>匹配模式</label>
+        <select id="f-match-type">
+          <option value="any">任一符合 (any)</option>
+          <option value="all">全部符合 (all)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 依類型動態切換的 action 區 -->
+    <div id="action-alert" class="form-row">
+      <div class="form-group">
+        <label>警示等級</label>
+        <select id="f-alert-level">
+          <option value="urgent">緊急 (urgent)</option>
+          <option value="warning">警告 (warning)</option>
+        </select>
+      </div>
+    </div>
+    <div id="action-auto_tag" class="form-row" style="display:none">
+      <div class="form-group">
+        <label>自動加入標籤（逗號分隔）</label>
+        <input type="text" id="f-tags" placeholder="VIP,重要客戶" />
+      </div>
+    </div>
+    <div id="action-keyword_reply" class="form-row" style="display:none">
+      <div class="form-group" style="flex:1">
+        <label>自動回覆內容</label>
+        <textarea id="f-reply-content" placeholder="營業時間 09:00-18:00...（支援 {customer.name} 等變數）"></textarea>
+      </div>
+    </div>
+    <div id="action-comment_to_dm" class="form-row" style="display:none; flex-direction:column; gap:10px;">
+      <div class="form-group" style="flex:1">
+        <label>DM 訊息內容（支援 {customer_name}、{post_id} 變數）</label>
+        <textarea id="f-dm-content" placeholder="您好！感謝留言，私訊了解更多詳情：..."></textarea>
+      </div>
+      <div class="form-row" style="margin:0; gap:12px;">
+        <div class="form-group" style="flex:1">
+          <label>適用通道</label>
+          <select id="f-comment-channels">
+            <option value="">全部（FB + IG）</option>
+            <option value="fb">僅 Facebook</option>
+            <option value="ig">僅 Instagram</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>限定貼文 ID（空白 = 所有貼文）</label>
+          <input type="text" id="f-comment-post-id" placeholder="可留空，空白代表全部貼文觸發" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="f-also-reply-comment" style="margin-right:6px;" />
+          同時回覆留言（在貼文留言處也回覆一則訊息）
+        </label>
+      </div>
+      <div id="comment-reply-wrap" class="form-group" style="display:none;">
+        <label>留言回覆內容</label>
+        <input type="text" id="f-comment-reply-text" placeholder="感謝您的留言！已私訊您詳情。" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>優先權（數字越大越先觸發）</label>
+        <input type="number" id="f-priority" value="0" min="0" max="100" />
+      </div>
+      <div class="form-group">
+        <label>啟用</label>
+        <select id="f-enabled">
+          <option value="1">啟用</option>
+          <option value="0">停用</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveRule()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 快速測試 Modal -->
+<div class="modal-overlay" id="test-modal">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">規則快速測試</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>選擇規則</label>
+      <select id="test-rule-select"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>測試訊息</label>
+      <textarea id="test-message" style="min-height:80px" placeholder="輸入模擬顧客訊息..."></textarea>
+    </div>
+    <div id="test-result-area"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+      <button class="btn btn-ghost" onclick="closeModal('test-modal')">關閉</button>
+      <button class="btn btn-primary" onclick="runTest()">執行測試</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  return r.json();
+};
+
+let rules = [];
+let editingId = null;
+let clientId = null;
+
+const init = async () => {
+  const me = await api('GET', '/api/me');
+  clientId = me.client_id;
+  await loadRules();
+};
+
+const loadRules = async () => {
+  const data = await api('GET', `/api/rules?client_id=${clientId || ''}`);
+  rules = data.rules || [];
+  renderRules();
+  renderTestSelect();
+};
+
+const typeLabel = { keyword_reply: '自動回覆', auto_tag: '自動標籤', alert: '對話警示', comment_to_dm: '留言自動 DM' };
+const typeClass  = { keyword_reply: 'badge-keyword_reply', auto_tag: 'badge-auto_tag', alert: 'badge-alert', comment_to_dm: 'badge-comment_to_dm' };
+
+const renderRules = () => {
+  const el = document.getElementById('rules-list');
+  if (!rules.length) { el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">尚無規則，點右上角新增</p>'; return; }
+  el.innerHTML = rules.map(r => {
+    let trigger = {}; try { trigger = JSON.parse(r.trigger); } catch {}
+    let action = {}; try { action = JSON.parse(r.action); } catch {}
+    const kw = (trigger.keywords || []).join('、').slice(0, 40);
+    let actionDesc = '';
+    if (r.rule_type === 'alert') actionDesc = `警示：${action?.payload?.level || 'urgent'}`;
+    else if (r.rule_type === 'auto_tag') actionDesc = `標籤：${(action?.payload?.tags || []).join('、')}`;
+    else if (r.rule_type === 'keyword_reply') actionDesc = `回覆：${(action?.payload?.content || '').slice(0, 30)}...`;
+    else if (r.rule_type === 'comment_to_dm') actionDesc = `DM：${(action?.payload?.dm_content || '').slice(0, 30)}...`;
+
+    return `<div class="rule-item">
+      <span class="rule-type-badge ${typeClass[r.rule_type]}">${typeLabel[r.rule_type]}</span>
+      <div style="flex:1">
+        <div class="rule-name">${r.name}</div>
+        <div class="rule-meta">關鍵字：${kw || '(未設定)'} &nbsp;|&nbsp; ${actionDesc} &nbsp;|&nbsp; 觸發 ${r.trigger_count} 次 &nbsp;|&nbsp; 優先權 ${r.priority}</div>
+      </div>
+      <button class="toggle ${r.enabled ? 'on' : ''}" title="${r.enabled ? '停用' : '啟用'}" onclick="toggleRule(${r.id}, ${r.enabled})"></button>
+      <div class="rule-actions">
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="editRule(${r.id})">編輯</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteRule(${r.id})">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+const renderTestSelect = () => {
+  const sel = document.getElementById('test-rule-select');
+  sel.innerHTML = rules.map(r => `<option value="${r.id}">${r.name} (${typeLabel[r.rule_type]})</option>`).join('');
+};
+
+const onTypeChange = () => {
+  const t = document.getElementById('f-type').value;
+  document.getElementById('action-alert').style.display = t === 'alert' ? 'flex' : 'none';
+  document.getElementById('action-auto_tag').style.display = t === 'auto_tag' ? 'flex' : 'none';
+  document.getElementById('action-keyword_reply').style.display = t === 'keyword_reply' ? 'flex' : 'none';
+  document.getElementById('action-comment_to_dm').style.display = t === 'comment_to_dm' ? 'flex' : 'none';
+};
+
+// P8：留言回覆 checkbox toggle
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'f-also-reply-comment') {
+    document.getElementById('comment-reply-wrap').style.display = e.target.checked ? 'flex' : 'none';
+  }
+});
+
+const openCreateModal = () => {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '新增規則';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-type').value = 'alert';
+  document.getElementById('f-keywords').value = '';
+  document.getElementById('f-match-type').value = 'any';
+  document.getElementById('f-priority').value = 0;
+  document.getElementById('f-enabled').value = '1';
+  document.getElementById('f-alert-level').value = 'urgent';
+  document.getElementById('f-tags').value = '';
+  document.getElementById('f-reply-content').value = '';
+  document.getElementById('f-dm-content').value = '';
+  document.getElementById('f-comment-channels').value = '';
+  document.getElementById('f-comment-post-id').value = '';
+  document.getElementById('f-also-reply-comment').checked = false;
+  document.getElementById('f-comment-reply-text').value = '';
+  document.getElementById('comment-reply-wrap').style.display = 'none';
+  onTypeChange();
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+const editRule = (id) => {
+  const rule = rules.find(r => r.id === id);
+  if (!rule) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = '編輯規則';
+  document.getElementById('f-name').value = rule.name;
+  document.getElementById('f-type').value = rule.rule_type;
+  document.getElementById('f-priority').value = rule.priority;
+  document.getElementById('f-enabled').value = rule.enabled ? '1' : '0';
+
+  let trigger = {}; try { trigger = JSON.parse(rule.trigger); } catch {}
+  let action = {}; try { action = JSON.parse(rule.action); } catch {}
+
+  document.getElementById('f-keywords').value = (trigger.keywords || []).join(',');
+  document.getElementById('f-match-type').value = trigger.match_type || 'any';
+  document.getElementById('f-alert-level').value = action?.payload?.level || 'urgent';
+  document.getElementById('f-tags').value = (action?.payload?.tags || []).join(',');
+  document.getElementById('f-reply-content').value = action?.payload?.content || '';
+  // comment_to_dm 欄位
+  document.getElementById('f-dm-content').value = action?.payload?.dm_content || '';
+  document.getElementById('f-comment-channels').value = trigger.channels?.[0] || '';
+  document.getElementById('f-comment-post-id').value = trigger.post_id || '';
+  const alsoReply = !!(action?.payload?.also_reply_comment);
+  document.getElementById('f-also-reply-comment').checked = alsoReply;
+  document.getElementById('f-comment-reply-text').value = action?.payload?.comment_reply_text || '';
+  document.getElementById('comment-reply-wrap').style.display = alsoReply ? 'flex' : 'none';
+
+  onTypeChange();
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+const saveRule = async () => {
+  const type = document.getElementById('f-type').value;
+  const keywords = document.getElementById('f-keywords').value.split(',').map(k => k.trim()).filter(Boolean);
+  const matchType = document.getElementById('f-match-type').value;
+
+  let action;
+  if (type === 'alert') {
+    action = { type: 'alert', payload: { level: document.getElementById('f-alert-level').value, notify_users: [] } };
+  } else if (type === 'auto_tag') {
+    const tags = document.getElementById('f-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+    action = { type: 'auto_tag', payload: { tags } };
+  } else if (type === 'comment_to_dm') {
+    const alsoReply = document.getElementById('f-also-reply-comment').checked;
+    action = { type: 'comment_to_dm', payload: {
+      dm_content: document.getElementById('f-dm-content').value.trim(),
+      also_reply_comment: alsoReply,
+      comment_reply_text: alsoReply ? document.getElementById('f-comment-reply-text').value.trim() : '',
+    }};
+  } else {
+    action = { type: 'keyword_reply', payload: { content: document.getElementById('f-reply-content').value } };
+  }
+
+  // comment_to_dm trigger 加通道 + post_id
+  let triggerExtra = {};
+  if (type === 'comment_to_dm') {
+    const ch = document.getElementById('f-comment-channels').value;
+    const postId = document.getElementById('f-comment-post-id').value.trim();
+    if (ch) triggerExtra.channels = [ch];
+    if (postId) triggerExtra.post_id = postId;
+  }
+
+  const body = {
+    client_id: clientId,
+    name: document.getElementById('f-name').value.trim(),
+    rule_type: type,
+    trigger: { keywords, match_type: matchType, case_sensitive: false, ...triggerExtra },
+    action,
+    priority: parseInt(document.getElementById('f-priority').value, 10) || 0,
+    enabled: parseInt(document.getElementById('f-enabled').value, 10),
+  };
+
+  if (!body.name) return alert('請填寫規則名稱');
+  if (!keywords.length) return alert('至少需要一個關鍵字');
+
+  const method = editingId ? 'PUT' : 'POST';
+  const path = editingId ? `/api/rules/${editingId}` : '/api/rules';
+  const r = await api(method, path, body);
+  if (r.ok || r.id) { closeModal('edit-modal'); loadRules(); }
+  else alert(r.error || '儲存失敗');
+};
+
+const toggleRule = async (id, currentEnabled) => {
+  await api('PUT', `/api/rules/${id}`, { client_id: clientId, enabled: currentEnabled ? 0 : 1 });
+  loadRules();
+};
+
+const deleteRule = async (id) => {
+  if (!confirm('確定要刪除這條規則嗎？')) return;
+  await api('DELETE', `/api/rules/${id}?client_id=${clientId}`);
+  loadRules();
+};
+
+const openTestModal = () => {
+  document.getElementById('test-result-area').innerHTML = '';
+  document.getElementById('test-modal').classList.add('open');
+};
+
+const runTest = async () => {
+  const ruleId = document.getElementById('test-rule-select').value;
+  const msg = document.getElementById('test-message').value.trim();
+  if (!msg) return alert('請輸入測試訊息');
+  const r = await api('POST', `/api/rules/${ruleId}/test`, { client_id: clientId, sample_message: msg });
+  const area = document.getElementById('test-result-area');
+  if (r.triggered) {
+    area.innerHTML = `<div class="test-result test-triggered">✅ 規則觸發！匹配關鍵字：${(r.matched_keywords || []).join('、') || '（全部）'}</div>`;
+  } else {
+    area.innerHTML = `<div class="test-result test-not-triggered">❌ 未觸發（訊息未包含對應關鍵字）</div>`;
+  }
+};
+
+const closeModal = (id) => document.getElementById(id).classList.remove('open');
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大轉盤抽獎</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .wrap { background: #fff; border-radius: 20px; padding: 28px 24px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .sub { color: #888; font-size: 14px; margin-bottom: 8px; }
+  .meta-bar { display: flex; gap: 12px; justify-content: center; margin-bottom: 14px; font-size: 13px; color: #666; }
+  .meta-tag { background: #f0f0f7; border-radius: 20px; padding: 3px 10px; }
+  .countdown { color: #e74c3c; font-weight: 700; }
+  .wheel-wrap { position: relative; width: 280px; height: 280px; margin: 0 auto 20px; }
+  canvas#wheel { border-radius: 50%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+  .pointer { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 32px; z-index: 10; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; transition: transform 0.1s; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .result { margin-top: 16px; padding: 16px; border-radius: 10px; font-size: 16px; }
+  .result.win { background: #fffbdd; border: 2px solid #f0c040; }
+  .result.lose { background: #f5f5f5; border: 2px solid #ddd; }
+  .coupon { font-size: 20px; font-weight: 700; color: #e67e22; letter-spacing: 2px; margin-top: 8px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+  .err { color: #d00; font-size: 14px; margin-top: 8px; }
+  /* 中獎彈窗 */
+  .win-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .win-modal.show { display: flex; }
+  .win-box { background: #fff; border-radius: 20px; padding: 32px 24px; text-align: center; max-width: 320px; width: 90%; animation: popIn 0.4s ease; }
+  @keyframes popIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-emoji { font-size: 52px; margin-bottom: 12px; }
+  .win-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .win-name { font-size: 18px; color: #5856d6; font-weight: 700; margin-bottom: 12px; }
+  .share-btns { display: flex; gap: 8px; margin-top: 16px; }
+  .share-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: #fff; }
+  .share-line { background: #06C755; }
+  .share-ig { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+  .share-fb { background: #1877f2; }
+  .win-close { margin-top: 14px; padding: 10px; width: 100%; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; color: #666; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="actName">大轉盤</h1>
+  <div class="sub" id="actDesc">參與抽獎</div>
+  <div class="meta-bar" id="metaBar" style="display:none">
+    <span class="meta-tag" id="remainingTag" style="display:none"></span>
+    <span class="meta-tag countdown" id="countdownTag" style="display:none"></span>
+  </div>
+
+  <div id="infoForm">
+    <input id="channelId" placeholder="請輸入您的 LINE ID（選填）">
+    <input id="phoneTxt" placeholder="手機號碼（選填）">
+  </div>
+
+  <div class="wheel-wrap">
+    <div class="pointer">▼</div>
+    <canvas id="wheel" width="280" height="280"></canvas>
+  </div>
+
+  <button class="btn" id="drawBtn" onclick="draw()">開始抽獎</button>
+  <div class="result" id="result" style="display:none"></div>
+  <div class="err" id="errMsg"></div>
+</div>
+
+<!-- 中獎彈窗 -->
+<div class="win-modal" id="winModal">
+  <div class="win-box">
+    <div class="win-emoji">🎊</div>
+    <div class="win-title">恭喜中獎！</div>
+    <div class="win-name" id="modalPrizeName"></div>
+    <div id="modalCoupon" style="font-size:18px;font-weight:700;color:#e67e22;letter-spacing:2px;"></div>
+    <div id="shareBtnsWrap" style="display:none">
+      <div style="font-size:13px;color:#888;margin-top:12px">分享獲得 20 點獎勵</div>
+      <div class="share-btns">
+        <button class="share-btn share-line" onclick="doShare('line')">LINE</button>
+        <button class="share-btn share-ig" onclick="doShare('ig')">IG</button>
+        <button class="share-btn share-fb" onclick="doShare('fb')">FB</button>
+      </div>
+    </div>
+    <button class="win-close" onclick="closeWinModal()">確認</button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const actId = params.get('activity_id');
+let prizes = [];
+let spinDeg = 0;
+let spinning = false;
+let activityInfo = {};
+let lastParticipationId = null;
+let countdownTimer = null;
+
+const colors = ['#e74c3c','#f39c12','#2ecc71','#3498db','#9b59b6','#1abc9c','#e67e22','#2980b9'];
+
+// ─── Web Audio 音效 ───
+const audioCtx = () => {
+  try { return new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
+};
+let _ctx = null;
+const getCtx = () => { if (!_ctx) _ctx = audioCtx(); return _ctx; };
+
+const playSound = (type) => {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const freqs = type === 'cheerful'
+    ? [523, 659, 784, 1047]
+    : type === 'mystic'
+    ? [220, 277, 330, 440]
+    : [];
+  if (!freqs.length) return;
+  freqs.forEach((f, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = f;
+    osc.type = type === 'mystic' ? 'sine' : 'square';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+    osc.start(ctx.currentTime + i * 0.12);
+    osc.stop(ctx.currentTime + i * 0.12 + 0.35);
+  });
+};
+
+const playWinSound = (soundEffect) => {
+  if (soundEffect === 'silent') return;
+  playSound(soundEffect || 'cheerful');
+};
+
+// ─── 倒數計時 ───
+const startCountdown = (seconds) => {
+  const el = document.getElementById('countdownTag');
+  if (!el || seconds === null || seconds === undefined) return;
+  el.style.display = '';
+  document.getElementById('metaBar').style.display = '';
+
+  const update = () => {
+    if (seconds <= 0) {
+      el.textContent = '活動已結束';
+      document.getElementById('drawBtn').disabled = true;
+      clearInterval(countdownTimer);
+      return;
+    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    el.textContent = `剩餘 ${h > 0 ? h+'h ' : ''}${m > 0 ? m+'m ' : ''}${s}s`;
+    seconds--;
+  };
+  update();
+  countdownTimer = setInterval(update, 1000);
+};
+
+const drawWheel = (rotateDeg = 0) => {
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2, r = W / 2 - 4;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!prizes.length) {
+    ctx.fillStyle = '#ccc';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.fill();
+    return;
+  }
+
+  const n = prizes.length;
+  const arc = (2 * Math.PI) / n;
+
+  for (let i = 0; i < n; i++) {
+    const start = rotateDeg * Math.PI / 180 + i * arc;
+    const end = start + arc;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.closePath();
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + arc / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px system-ui';
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(prizes[i].name.slice(0, 8), r - 8, 5);
+    ctx.restore();
+  }
+
+  // 中心圓
+  ctx.beginPath();
+  ctx.arc(cx, cy, 20, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+};
+
+const loadActivity = async () => {
+  if (!actId) { document.getElementById('actName').textContent = '活動不存在'; return; }
+  try {
+    const r = await fetch(`/api/play/${actId}/info`);
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('actName').textContent = data.error || '活動不存在';
+      document.getElementById('drawBtn').disabled = true;
+      return;
+    }
+    activityInfo = data;
+    document.getElementById('actName').textContent = data.name;
+    document.getElementById('actDesc').textContent = data.config?.description || `最多抽 ${data.participation_limit_per_user} 次`;
+    prizes = data.prizes || [];
+    drawWheel(0);
+
+    // 剩餘名額
+    if (data.remaining_winners !== null && data.remaining_winners !== undefined) {
+      const remTag = document.getElementById('remainingTag');
+      remTag.textContent = `剩餘名額：${data.remaining_winners}`;
+      remTag.style.display = '';
+      document.getElementById('metaBar').style.display = '';
+    }
+
+    // 倒數
+    if (data.time_remaining_seconds !== null && data.time_remaining_seconds !== undefined) {
+      startCountdown(data.time_remaining_seconds);
+    }
+  } catch { document.getElementById('errMsg').textContent = '載入失敗'; }
+};
+
+const animateSpin = (targetAngle, resolve) => {
+  const duration = 3500;
+  const start = performance.now();
+  const startAngle = spinDeg;
+  const totalRotation = 360 * 5 + targetAngle;
+
+  const animate = (now) => {
+    const elapsed = now - start;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const current = startAngle + totalRotation * eased;
+    drawWheel(current);
+    if (t < 1) requestAnimationFrame(animate);
+    else {
+      spinDeg = current % 360;
+      resolve();
+    }
+  };
+  requestAnimationFrame(animate);
+};
+
+const showWinModal = (prize) => {
+  document.getElementById('modalPrizeName').textContent = prize.name;
+  if (prize.coupon_code) {
+    document.getElementById('modalCoupon').textContent = '優惠碼：' + prize.coupon_code;
+  } else {
+    document.getElementById('modalCoupon').textContent = '';
+  }
+  if (activityInfo.share_bonus_enabled) {
+    document.getElementById('shareBtnsWrap').style.display = '';
+  }
+  document.getElementById('winModal').classList.add('show');
+};
+
+const closeWinModal = () => {
+  document.getElementById('winModal').classList.remove('show');
+};
+
+const doShare = async (channel) => {
+  if (!lastParticipationId) return;
+  const channelId = document.getElementById('channelId').value.trim();
+  try {
+    const r = await fetch(`/api/play/${lastParticipationId}/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel, channel_user_id: channelId || null }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      alert(`已獲得 ${data.bonus_points} 點獎勵！`);
+    } else {
+      alert(data.message || '已領取過此頻道的分享獎勵');
+    }
+  } catch {}
+};
+
+const draw = async () => {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('drawBtn').disabled = true;
+  document.getElementById('errMsg').textContent = '';
+  document.getElementById('result').style.display = 'none';
+
+  const channelId = document.getElementById('channelId').value.trim();
+  const body = { channel_user_id: channelId || null };
+
+  try {
+    const r = await fetch(`/api/play/${actId}/draw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+
+    if (!r.ok) {
+      document.getElementById('errMsg').textContent = data.error || '抽獎失敗';
+      spinning = false;
+      document.getElementById('drawBtn').disabled = false;
+      return;
+    }
+
+    lastParticipationId = data.participation_id;
+
+    let targetAngle = 0;
+    if (data.won && data.prize) {
+      const idx = prizes.findIndex(p => p.id === data.prize.id);
+      if (idx >= 0) {
+        const arc = 360 / prizes.length;
+        targetAngle = 360 - (idx * arc + arc / 2);
+      }
+    } else {
+      targetAngle = Math.random() * 360;
+    }
+
+    await new Promise(resolve => animateSpin(targetAngle, resolve));
+
+    const resultEl = document.getElementById('result');
+    if (data.won) {
+      playWinSound(activityInfo.sound_effect);
+      resultEl.className = 'result win';
+      resultEl.innerHTML = `<div>恭喜中獎！</div><div style="font-size:18px;font-weight:700;margin:8px 0">${data.prize.name}</div>${data.prize.description ? `<div style="font-size:13px;color:#666">${data.prize.description}</div>` : ''}${data.prize.coupon_code ? `<div class="coupon">優惠碼：${data.prize.coupon_code}</div>` : ''}`;
+      showWinModal(data.prize);
+    } else {
+      resultEl.className = 'result lose';
+      resultEl.innerHTML = '<div>銘謝惠顧，感謝您的參與！</div>';
+    }
+    resultEl.style.display = 'block';
+    document.getElementById('drawBtn').textContent = '已抽過';
+
+    // 3 秒後跳評價頁
+    if (data.participation_id) {
+      setTimeout(() => {
+        if (!document.getElementById('winModal').classList.contains('show')) {
+          const fbUrl = `/feedback/activity.html?activity_id=${encodeURIComponent(actId)}&participation_id=${encodeURIComponent(data.participation_id)}`;
+          location.href = fbUrl;
+        }
+      }, 4000);
+    }
+  } catch (e) {
+    document.getElementById('errMsg').textContent = '網路錯誤，請稍後再試';
+    document.getElementById('drawBtn').disabled = false;
+  }
+  spinning = false;
+};
+
+loadActivity();
+</script>
+</body>
+</html>

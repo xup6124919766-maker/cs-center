@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>個人設定 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .topnav .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .container { max-width: 640px; margin: 32px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { margin: 0 0 4px; font-size: 17px; }
+  .card .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
+  .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+  .status-badge.enabled { background: #e8f5e9; color: #2e7d32; }
+  .status-badge.disabled { background: #fafafa; color: #888; border: 1px solid #e0e0e0; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.green { background: #43a047; }
+  .dot.grey { background: #bbb; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; color: #666; font-weight: 500; margin-bottom: 6px; }
+  .form-group input { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; outline: none; box-sizing: border-box; }
+  .form-group input:focus { border-color: #5856d6; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-primary:hover { background: #4644c4; }
+  .btn-danger { background: #fff; color: #c62828; border: 1px solid #ef9a9a; }
+  .btn-danger:hover { background: #ffebee; }
+  .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; }
+  .btn-secondary:hover { background: #f5f5f5; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+  .qr-wrap { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin: 16px 0; }
+  .qr-img { width: 200px; height: 200px; border: 1px solid #e0e0e0; border-radius: 8px; flex-shrink: 0; }
+  .secret-box { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; font-family: 'SF Mono', 'Consolas', monospace; font-size: 15px; letter-spacing: 2px; word-break: break-all; }
+  .secret-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .backup-codes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  .backup-code { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 13px; text-align: center; letter-spacing: 1px; }
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .alert-warn { background: #fff8e1; border: 1px solid #ffe082; color: #795548; }
+  .alert-success { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; }
+  .alert-err { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; }
+  .hidden { display: none !important; }
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; z-index: 9999; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+  #toast.show { display: block; }
+  #toast.success { background: #43a047; }
+  #toast.error { background: #e53935; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/index.html">客服</a>
+  <a href="/dashboard.html">儀表板</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/profile.html" class="active">個人設定</a>
+  <div class="right">
+    <span id="user-info" style="color:#ccc;font-size:13px;"></span>
+    <button onclick="logout()" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#ccc;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:13px;">登出</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- 帳號資訊 -->
+  <div class="card">
+    <h2>帳號資訊</h2>
+    <div class="sub">基本帳號設定</div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div style="width:52px;height:52px;border-radius:50%;background:#5856d6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;">👤</div>
+      <div>
+        <div id="profile-username" style="font-weight:600;font-size:16px;">—</div>
+        <div id="profile-role" style="color:#888;font-size:13px;margin-top:2px;">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2FA 設定 -->
+  <div class="card">
+    <h2>雙重驗證（2FA）</h2>
+    <div class="sub">使用 Google Authenticator 或其他 TOTP App 掃描 QR Code</div>
+
+    <div id="2fa-status-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <div id="2fa-badge" class="status-badge disabled"><span class="dot grey"></span>未啟用</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary hidden" id="enable-btn" onclick="startEnable()">啟用 2FA</button>
+        <button class="btn btn-danger hidden" id="disable-btn" onclick="showDisableForm()">停用 2FA</button>
+      </div>
+    </div>
+
+    <!-- 啟用流程 -->
+    <div id="setup-section" class="hidden">
+      <div class="section-title">步驟 1：掃描 QR Code</div>
+      <div class="qr-wrap">
+        <img id="qr-img" class="qr-img" src="" alt="QR Code" />
+        <div style="flex:1;min-width:200px;">
+          <div class="secret-label">如無法掃描，請手動輸入 Secret：</div>
+          <div class="secret-box" id="secret-text">—</div>
+          <div style="font-size:12px;color:#888;margin-top:8px;">在 Authenticator App 中選「手動輸入」，貼上以上 Secret。</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:16px;">步驟 2：驗證並啟用</div>
+      <div class="form-group">
+        <label>輸入 App 顯示的 6 位數驗證碼</label>
+        <input type="text" id="verify-code" placeholder="123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" id="verify-btn" onclick="verifyAndEnable()">驗證並啟用</button>
+        <button class="btn btn-secondary" onclick="cancelSetup()">取消</button>
+      </div>
+    </div>
+
+    <!-- 備援碼顯示（一次性）-->
+    <div id="backup-section" class="hidden">
+      <div class="alert alert-warn">請立即抄下以下備援碼並儲存在安全的地方。這些碼只顯示一次，忘記 TOTP 驗證時可用來登入。</div>
+      <div class="section-title">備援碼（每組只能使用一次）</div>
+      <div class="backup-codes" id="backup-codes-grid"></div>
+      <button class="btn btn-secondary" style="margin-top:8px;" onclick="copyBackupCodes()">複製所有備援碼</button>
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="confirmBackupSaved()">我已抄下備援碼</button>
+      </div>
+    </div>
+
+    <!-- 停用表單 -->
+    <div id="disable-section" class="hidden">
+      <div class="section-title">停用雙重驗證</div>
+      <div class="alert alert-warn">停用後登入將不再需要 TOTP 驗證碼，安全等級會降低。</div>
+      <div class="form-group">
+        <label>目前密碼</label>
+        <input type="password" id="disable-password" placeholder="請輸入密碼" autocomplete="current-password" />
+      </div>
+      <div class="form-group">
+        <label>TOTP 驗證碼（6 位數）</label>
+        <input type="text" id="disable-code" placeholder="123456" maxlength="6" inputmode="numeric" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-danger" onclick="doDisable()">確認停用</button>
+        <button class="btn btn-secondary" onclick="cancelDisable()">取消</button>
+      </div>
+    </div>
+
+    <div id="2fa-msg" style="margin-top:12px;font-size:13px;color:#888;"></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── CSRF helper ───
+const getCsrfToken = () => {
+  const match = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='));
+  return match ? match.slice(8) : '';
+};
+
+const api = async (method, path, body) => {
+  const opts = {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      'x-csrf-token': getCsrfToken(),
+    },
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+};
+
+const toast = (msg, type = '') => {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3500);
+};
+
+const setMsg = (msg, color = '#888') => {
+  const el = document.getElementById('2fa-msg');
+  el.textContent = msg;
+  el.style.color = color;
+};
+
+let backupCodesList = [];
+
+// ─── 初始化 ───
+const init = async () => {
+  let me;
+  try {
+    me = await api('GET', '/api/me');
+  } catch {
+    location.href = '/login.html';
+    return;
+  }
+  document.getElementById('profile-username').textContent = me.username;
+  document.getElementById('profile-role').textContent = me.role === 'admin' ? '管理員' : '客服人員';
+  document.getElementById('user-info').textContent = me.username;
+
+  if (me.totp_enabled) {
+    setBadgeEnabled();
+    document.getElementById('disable-btn').classList.remove('hidden');
+  } else {
+    document.getElementById('enable-btn').classList.remove('hidden');
+  }
+};
+
+const setBadgeEnabled = () => {
+  const badge = document.getElementById('2fa-badge');
+  badge.className = 'status-badge enabled';
+  badge.innerHTML = '<span class="dot green"></span>已啟用';
+};
+const setBadgeDisabled = () => {
+  const badge = document.getElementById('2fa-badge');
+  badge.className = 'status-badge disabled';
+  badge.innerHTML = '<span class="dot grey"></span>未啟用';
+};
+
+// ─── 啟用流程 ───
+window.startEnable = async () => {
+  setMsg('正在生成 QR Code…');
+  try {
+    const data = await api('POST', '/api/me/2fa/setup');
+    document.getElementById('qr-img').src = data.qr_code_url;
+    document.getElementById('secret-text').textContent = data.secret;
+    document.getElementById('setup-section').classList.remove('hidden');
+    document.getElementById('enable-btn').classList.add('hidden');
+    document.getElementById('verify-code').value = '';
+    document.getElementById('verify-code').focus();
+    setMsg('');
+  } catch (e) {
+    setMsg(`錯誤：${e.message}`, '#c62828');
+  }
+};
+
+window.verifyAndEnable = async () => {
+  const code = document.getElementById('verify-code').value.trim();
+  if (!code) { setMsg('請輸入驗證碼', '#c62828'); return; }
+  const btn = document.getElementById('verify-btn');
+  btn.disabled = true;
+  btn.textContent = '驗證中…';
+  try {
+    const data = await api('POST', '/api/me/2fa/verify', { code });
+    backupCodesList = data.backup_codes || [];
+    // 顯示備援碼
+    document.getElementById('setup-section').classList.add('hidden');
+    const grid = document.getElementById('backup-codes-grid');
+    grid.innerHTML = backupCodesList.map(c => `<div class="backup-code">${c}</div>`).join('');
+    document.getElementById('backup-section').classList.remove('hidden');
+    setBadgeEnabled();
+    setMsg('');
+    toast('2FA 已成功啟用！請抄下備援碼', 'success');
+  } catch (e) {
+    setMsg(`驗證失敗：${e.message}`, '#c62828');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '驗證並啟用';
+  }
+};
+
+window.cancelSetup = () => {
+  document.getElementById('setup-section').classList.add('hidden');
+  document.getElementById('enable-btn').classList.remove('hidden');
+  setMsg('');
+};
+
+window.copyBackupCodes = () => {
+  const text = backupCodesList.join('\n');
+  navigator.clipboard.writeText(text).then(() => toast('已複製備援碼', 'success')).catch(() => toast('複製失敗，請手動複製', 'error'));
+};
+
+window.confirmBackupSaved = () => {
+  document.getElementById('backup-section').classList.add('hidden');
+  document.getElementById('disable-btn').classList.remove('hidden');
+};
+
+// ─── 停用流程 ───
+window.showDisableForm = () => {
+  document.getElementById('disable-section').classList.remove('hidden');
+  document.getElementById('disable-btn').classList.add('hidden');
+  document.getElementById('disable-password').value = '';
+  document.getElementById('disable-code').value = '';
+  document.getElementById('disable-password').focus();
+};
+
+window.doDisable = async () => {
+  const password = document.getElementById('disable-password').value;
+  const code = document.getElementById('disable-code').value.trim();
+  if (!password || !code) { setMsg('請填入密碼與驗證碼', '#c62828'); return; }
+  try {
+    await api('POST', '/api/me/2fa/disable', { password, code });
+    document.getElementById('disable-section').classList.add('hidden');
+    setBadgeDisabled();
+    document.getElementById('enable-btn').classList.remove('hidden');
+    toast('2FA 已停用', 'success');
+    setMsg('');
+  } catch (e) {
+    setMsg(`停用失敗：${e.message}`, '#c62828');
+  }
+};
+
+window.cancelDisable = () => {
+  document.getElementById('disable-section').classList.add('hidden');
+  document.getElementById('disable-btn').classList.remove('hidden');
+  setMsg('');
+};
+
+window.logout = async () => {
+  await fetch('/api/logout', { method: 'POST', headers: { 'x-csrf-token': getCsrfToken() } });
+  location.href = '/login.html';
+};
+
+init();
+</script>
+</body>
+</html>

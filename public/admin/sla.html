@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>SLA 警示設定 — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 800px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; }
+    .card-header { padding: 12px 20px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--bg); border-radius: var(--radius) var(--radius) 0 0; }
+    .card-body { padding: 20px; }
+    .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .form-label { width: 180px; font-size: 13px; color: var(--text-secondary); flex-shrink: 0; }
+    .form-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg); }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+    .form-hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .btn { padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .kpi { border-radius: var(--radius); padding: 20px; text-align: center; border: 2px solid; }
+    .kpi.within  { background: #e8f8ef; border-color: #06C755; }
+    .kpi.warning { background: #fff3e0; border-color: #FFA000; }
+    .kpi.breached { background: #ffebee; border-color: #E53935; }
+    .kpi-num { font-size: 40px; font-weight: 700; line-height: 1; }
+    .kpi.within  .kpi-num { color: #00B14F; }
+    .kpi.warning .kpi-num { color: #FFA000; }
+    .kpi.breached .kpi-num { color: #E53935; }
+    .kpi-label { font-size: 12px; color: var(--text-secondary); margin-top: 6px; font-weight: 600; }
+    .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+    .toggle { width: 44px; height: 24px; background: var(--border); border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; }
+    .toggle.on { background: var(--primary); }
+    .toggle::after { content: ''; position: absolute; width: 18px; height: 18px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .toggle.on::after { left: 23px; }
+    .hours-grid { display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: center; }
+    .hours-grid label { font-size: 13px; color: var(--text-secondary); }
+    .time-range { display: flex; gap: 8px; align-items: center; }
+    .time-range input { width: 90px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+    .time-range span { font-size: 12px; color: var(--muted); }
+    .save-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+    #save-status { font-size: 13px; line-height: 36px; }
+    .status-ok  { color: var(--primary); }
+    .status-err { color: var(--danger); }
+    .refresh-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text-secondary); }
+    .refresh-btn:hover { background: var(--bg); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+    <a href="/" style="font-size:13px;color:var(--primary);text-decoration:none;">&larr; 返回客服中心</a>
+  </div>
+  <div class="page-title">SLA 警示設定</div>
+  <div class="page-sub">設定首次回覆時間與解決對話時間的服務水準協議，超時會自動觸發警示。</div>
+
+  <!-- 即時面板 -->
+  <div class="card">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>目前狀態面板</span>
+      <button class="refresh-btn" onclick="loadDashboard()">重新整理</button>
+    </div>
+    <div class="card-body">
+      <div class="kpi-grid">
+        <div class="kpi within">
+          <div class="kpi-num" id="kpi-within">—</div>
+          <div class="kpi-label">正常（within SLA）</div>
+        </div>
+        <div class="kpi warning">
+          <div class="kpi-num" id="kpi-warning">—</div>
+          <div class="kpi-label">警告（50–100% SLA）</div>
+        </div>
+        <div class="kpi breached">
+          <div class="kpi-num" id="kpi-breached">—</div>
+          <div class="kpi-label">已超時（breached）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLA 設定 -->
+  <div class="card">
+    <div class="card-header">SLA 時間設定</div>
+    <div class="card-body">
+      <div class="form-row">
+        <span class="form-label">首次回覆 SLA（分鐘）</span>
+        <div style="flex:1;">
+          <input type="number" id="first-reply-min" class="form-input" min="1" max="1440" value="30" style="width:120px;"/>
+          <div class="form-hint">超過此時間未回覆 → 警示。建議 30 分鐘。</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">解決對話 SLA（小時）</span>
+        <div style="flex:1;">
+          <input type="number" id="resolution-hr" class="form-input" min="1" max="720" value="24" style="width:120px;"/>
+          <div class="form-hint">對話從開啟到關閉的最長允許時間。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 營業時間 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="toggle-wrap">
+        <div class="toggle" id="bh-toggle" onclick="toggleBusinessHours()"></div>
+        <span>只在營業時間內計算 SLA</span>
+      </div>
+    </div>
+    <div class="card-body" id="bh-section" style="display:none;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">未填寫的星期視為非上班日，不列入 SLA 計算。</div>
+      <div class="hours-grid" id="bh-grid">
+        <!-- JS 渲染 -->
+      </div>
+    </div>
+  </div>
+
+  <div class="save-row">
+    <span id="save-status"></span>
+    <button class="btn btn-primary" onclick="saveConfig()">儲存設定</button>
+  </div>
+</div>
+
+<script>
+const DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_LABELS = ['星期一','星期二','星期三','星期四','星期五','星期六','星期日'];
+
+let businessHoursEnabled = false;
+let clientId = null;
+
+const api = async (method, path, body) => {
+  const opts = { method, headers: { 'content-type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+};
+
+const esc = (s) => (String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// 從 URL 或 session 取 client_id
+const getClientId = async () => {
+  const p = new URLSearchParams(location.search);
+  if (p.get('client_id')) return parseInt(p.get('client_id'), 10);
+  try {
+    const me = await api('GET', '/api/me');
+    return me.client_id || null;
+  } catch { return null; }
+};
+
+const renderBusinessHoursGrid = (bh) => {
+  const grid = document.getElementById('bh-grid');
+  grid.innerHTML = '';
+  DAY_KEYS.forEach((key, i) => {
+    const val = bh && bh[key] ? bh[key] : null;
+    const startVal = val ? val[0] : '09:00';
+    const endVal   = val ? val[1] : '18:00';
+    const checked  = val ? true : false;
+
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" id="bh-chk-${key}" ${checked ? 'checked' : ''} onchange="toggleDay('${key}')"> ${esc(DAY_LABELS[i])}`;
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '6px';
+    label.style.cursor = 'pointer';
+
+    const range = document.createElement('div');
+    range.className = 'time-range';
+    range.id = `bh-range-${key}`;
+    range.style.opacity = checked ? '1' : '0.4';
+    range.innerHTML = `
+      <input type="time" id="bh-start-${key}" value="${startVal}" ${!checked ? 'disabled' : ''}>
+      <span>~</span>
+      <input type="time" id="bh-end-${key}" value="${endVal}" ${!checked ? 'disabled' : ''}>
+    `;
+
+    grid.appendChild(label);
+    grid.appendChild(range);
+  });
+};
+
+const toggleDay = (key) => {
+  const chk = document.getElementById(`bh-chk-${key}`);
+  const range = document.getElementById(`bh-range-${key}`);
+  const inputs = range.querySelectorAll('input');
+  range.style.opacity = chk.checked ? '1' : '0.4';
+  inputs.forEach(i => i.disabled = !chk.checked);
+};
+
+const toggleBusinessHours = () => {
+  businessHoursEnabled = !businessHoursEnabled;
+  const toggle = document.getElementById('bh-toggle');
+  const section = document.getElementById('bh-section');
+  toggle.classList.toggle('on', businessHoursEnabled);
+  section.style.display = businessHoursEnabled ? '' : 'none';
+};
+
+const getBusinessHoursFromForm = () => {
+  if (!businessHoursEnabled) return null;
+  const bh = {};
+  DAY_KEYS.forEach(key => {
+    const chk = document.getElementById(`bh-chk-${key}`);
+    if (chk && chk.checked) {
+      const start = document.getElementById(`bh-start-${key}`)?.value || '09:00';
+      const end   = document.getElementById(`bh-end-${key}`)?.value   || '18:00';
+      bh[key] = [start, end];
+    }
+  });
+  return Object.keys(bh).length ? bh : null;
+};
+
+const loadConfig = async () => {
+  if (!clientId) return;
+  try {
+    const cfg = await api('GET', `/api/sla/config?client_id=${clientId}`);
+    document.getElementById('first-reply-min').value = cfg.sla_first_reply_minutes ?? 30;
+    document.getElementById('resolution-hr').value   = cfg.sla_resolution_hours    ?? 24;
+
+    const bh = cfg.sla_business_hours;
+    businessHoursEnabled = !!bh;
+    const toggle = document.getElementById('bh-toggle');
+    const section = document.getElementById('bh-section');
+    toggle.classList.toggle('on', businessHoursEnabled);
+    section.style.display = businessHoursEnabled ? '' : 'none';
+    renderBusinessHoursGrid(bh);
+  } catch (e) {
+    console.error('載入 SLA 設定失敗', e);
+  }
+};
+
+const loadDashboard = async () => {
+  if (!clientId) return;
+  try {
+    const d = await api('GET', `/api/sla/dashboard?client_id=${clientId}`);
+    document.getElementById('kpi-within').textContent  = d.within  ?? 0;
+    document.getElementById('kpi-warning').textContent = d.warning ?? 0;
+    document.getElementById('kpi-breached').textContent= d.breached?? 0;
+  } catch (e) {
+    console.error('載入 SLA 面板失敗', e);
+  }
+};
+
+const saveConfig = async () => {
+  if (!clientId) { alert('無法取得業主 ID'); return; }
+  const status = document.getElementById('save-status');
+  status.textContent = '儲存中...';
+  status.className = '';
+
+  const body = {
+    client_id: clientId,
+    sla_first_reply_minutes: parseInt(document.getElementById('first-reply-min').value, 10),
+    sla_resolution_hours:    parseInt(document.getElementById('resolution-hr').value, 10),
+    sla_business_hours:      getBusinessHoursFromForm(),
+  };
+
+  try {
+    await api('PUT', '/api/sla/config', body);
+    status.textContent = '已儲存';
+    status.className = 'status-ok';
+    setTimeout(() => { status.textContent = ''; }, 2500);
+  } catch (e) {
+    status.textContent = '儲存失敗：' + e.message;
+    status.className = 'status-err';
+  }
+};
+
+// 初始化
+(async () => {
+  clientId = await getClientId();
+  renderBusinessHoursGrid(null);
+  await Promise.all([loadConfig(), loadDashboard()]);
+
+  // 每 30 秒自動刷新面板
+  setInterval(loadDashboard, 30_000);
+})();
+</script>
+</body>
+</html>

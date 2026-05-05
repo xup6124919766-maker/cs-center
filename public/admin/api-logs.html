@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>API 呼叫 LOG — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+    .filters select, .filters input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; background: var(--surface); color: var(--text); }
+    .btn { padding: 6px 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-primary { background: var(--primary,#1976d2); color: #fff; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border-light,#f0f0f0); vertical-align: top; }
+    tr:hover td { background: var(--bg); }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+    .badge.success { background: #e8f5e9; color: #2e7d32; }
+    .badge.error   { background: #ffebee; color: #c62828; }
+    .badge.warn    { background: #fff3e0; color: #e65100; }
+    .badge.info    { background: #e3f2fd; color: #1565c0; }
+    .dir-in  { color: #388e3c; }
+    .dir-out { color: #1976d2; }
+    .pagination { display: flex; gap: 8px; margin-top: 16px; align-items: center; font-size: 13px; }
+    /* Modal */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; }
+    .modal-bg.open { display: flex; align-items: center; justify-content: center; }
+    .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; max-width: 700px; width: 94%; max-height: 85vh; overflow-y: auto; }
+    .modal h3 { margin: 0 0 12px; font-size: 16px; }
+    .modal-close { float: right; cursor: pointer; font-size: 18px; color: var(--muted); }
+    pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: 11px; overflow: auto; max-height: 300px; white-space: pre-wrap; word-break: break-all; }
+    .detail-row { display: flex; gap: 16px; margin-bottom: 8px; font-size: 13px; }
+    .detail-label { font-weight: 600; min-width: 100px; color: var(--muted); }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="wrap">
+  <div class="page-title">API 呼叫 LOG</div>
+  <div class="page-sub">LINE / FB 外部 API 呼叫完整記錄（Admin only）</div>
+
+  <div class="filters">
+    <select id="channelFilter">
+      <option value="">全部通道</option>
+      <option value="line">LINE</option>
+      <option value="fb">Facebook</option>
+      <option value="webhook">Webhook</option>
+    </select>
+    <select id="errorFilter">
+      <option value="">全部狀態</option>
+      <option value="true">僅錯誤</option>
+    </select>
+    <input type="date" id="fromDate"/>
+    <input type="date" id="toDate"/>
+    <button class="btn btn-primary" onclick="loadLogs(0)">搜尋</button>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>時間</th><th>方向</th><th>通道</th><th>Endpoint</th><th>狀態</th><th>耗時</th><th>錯誤</th><th></th>
+    </tr></thead>
+    <tbody id="logsTable"><tr><td colspan="8">載入中...</td></tr></tbody>
+  </table>
+  <div class="pagination">
+    <button class="btn btn-secondary" onclick="prevPage()">上一頁</button>
+    <span id="pageInfo">第 1 頁</span>
+    <button class="btn btn-secondary" onclick="nextPage()">下一頁</button>
+    <span id="totalInfo"></span>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal()">×</span>
+    <h3>API 呼叫詳情</h3>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+<script>
+let offset = 0;
+const limit = 50;
+let total = 0;
+
+const fmt = ts => new Date(ts).toLocaleString('zh-TW');
+
+async function loadLogs(off = 0) {
+  offset = off;
+  const channel    = document.getElementById('channelFilter').value;
+  const errorOnly  = document.getElementById('errorFilter').value;
+  const from       = document.getElementById('fromDate').value ? new Date(document.getElementById('fromDate').value).getTime() : '';
+  const to         = document.getElementById('toDate').value   ? new Date(document.getElementById('toDate').value).getTime() + 86400000 : '';
+
+  const p = new URLSearchParams({ limit, offset });
+  if (channel)   p.set('channel', channel);
+  if (errorOnly) p.set('error_only', errorOnly);
+  if (from)      p.set('from', from);
+  if (to)        p.set('to', to);
+
+  const data = await fetch(`/api/logs/api-calls?${p}`).then(r => r.json()).catch(() => ({ rows: [] }));
+  total = data.total || 0;
+
+  const tbody = document.getElementById('logsTable');
+  if (!data.rows?.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">無記錄</td></tr>';
+  } else {
+    tbody.innerHTML = data.rows.map(r => {
+      const statusClass = r.response_status >= 500 ? 'error'
+                        : r.response_status >= 400 ? 'warn'
+                        : r.response_status ? 'success' : 'info';
+      return `<tr>
+        <td>${fmt(r.created_at)}</td>
+        <td class="${r.direction === 'inbound' ? 'dir-in' : 'dir-out'}">${r.direction}</td>
+        <td>${r.channel}</td>
+        <td style="font-family:monospace;font-size:11px">${(r.endpoint || '').slice(0, 40)}</td>
+        <td><span class="badge ${statusClass}">${r.response_status || '-'}</span></td>
+        <td>${r.duration_ms != null ? r.duration_ms + 'ms' : '-'}</td>
+        <td style="color:#c62828;font-size:11px">${(r.error || '').slice(0, 40)}</td>
+        <td><button class="btn btn-secondary" onclick="openDetail(${r.id})">詳情</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('pageInfo').textContent = `第 ${Math.floor(offset / limit) + 1} 頁`;
+  document.getElementById('totalInfo').textContent = `共 ${total} 筆`;
+}
+
+function prevPage() { if (offset >= limit) loadLogs(offset - limit); }
+function nextPage() { if (offset + limit < total) loadLogs(offset + limit); }
+
+async function openDetail(id) {
+  const data = await fetch(`/api/logs/api-calls/${id}`).then(r => r.json()).catch(() => ({}));
+  const l = data.log || {};
+  const fmt = v => {
+    if (!v) return '-';
+    try { return JSON.stringify(JSON.parse(v), null, 2); } catch { return v; }
+  };
+  document.getElementById('modalContent').innerHTML = `
+    <div class="detail-row"><span class="detail-label">ID</span>${l.id}</div>
+    <div class="detail-row"><span class="detail-label">時間</span>${new Date(l.created_at).toLocaleString('zh-TW')}</div>
+    <div class="detail-row"><span class="detail-label">方向</span>${l.direction}</div>
+    <div class="detail-row"><span class="detail-label">通道</span>${l.channel}</div>
+    <div class="detail-row"><span class="detail-label">Endpoint</span>${l.endpoint || '-'}</div>
+    <div class="detail-row"><span class="detail-label">狀態碼</span>${l.response_status || '-'}</div>
+    <div class="detail-row"><span class="detail-label">耗時</span>${l.duration_ms != null ? l.duration_ms + 'ms' : '-'}</div>
+    ${l.error ? `<div class="detail-row"><span class="detail-label">錯誤</span><span style="color:#c62828">${l.error}</span></div>` : ''}
+    <div style="margin-top:12px;font-weight:600;font-size:13px;margin-bottom:4px">Request Headers</div>
+    <pre>${fmt(l.request_headers)}</pre>
+    <div style="margin-top:12px;font-weight:600;font-size:13px;margin-bottom:4px">Request Body</div>
+    <pre>${fmt(l.request_body)}</pre>
+    <div style="margin-top:12px;font-weight:600;font-size:13px;margin-bottom:4px">Response Body</div>
+    <pre>${fmt(l.response_body)}</pre>
+  `;
+  document.getElementById('modalBg').classList.add('open');
+}
+function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+
+// init
+const now = new Date();
+document.getElementById('toDate').value = now.toISOString().slice(0, 10);
+const from7 = new Date(Date.now() - 7 * 86400000);
+document.getElementById('fromDate').value = from7.toISOString().slice(0, 10);
+loadLogs(0);
+</script>
+</body>
+</html>

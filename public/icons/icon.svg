@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- 背景圓 -->
+  <circle cx="256" cy="256" r="256" fill="#06C755"/>
+  <!-- 對話氣泡 -->
+  <ellipse cx="256" cy="250" rx="172" ry="141" fill="white" opacity="0.97"/>
+  <!-- 尾巴 -->
+  <path d="M 213 352 Q 175 400 160 432 Q 240 408 264 358 Z" fill="white" opacity="0.97"/>
+  <!-- 三個點（正在輸入圖示）-->
+  <circle cx="196" cy="248" r="20" fill="#06C755"/>
+  <circle cx="256" cy="248" r="20" fill="#06C755"/>
+  <circle cx="316" cy="248" r="20" fill="#06C755"/>
+</svg>

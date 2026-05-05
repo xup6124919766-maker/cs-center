@@ -1,0 +1,43 @@
+name: Uptime Check
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production health
+        run: |
+          # 主網域（cs.sandian.work）優先；SSL 初始化期間 fallback 到預設域名
+          URLS="https://cs.sandian.work/api/health https://web-production-2b829.up.railway.app/api/health"
+          PASSED=""
+          for URL in $URLS; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$URL" 2>/dev/null || echo "000")
+            echo "Checking $URL -> HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              BODY=$(curl -s --max-time 15 "$URL" 2>/dev/null)
+              DB_OK=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('db_ok',''))" 2>/dev/null)
+              LIVENESS=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('liveness',''))" 2>/dev/null)
+              if [ "$DB_OK" = "True" ]; then
+                echo "UP: $URL HTTP 200, db_ok=True, liveness=$LIVENESS at $(date -u)" | tee -a $GITHUB_STEP_SUMMARY
+                PASSED="$URL"
+                break
+              fi
+            fi
+          done
+          if [ -z "$PASSED" ]; then
+            echo "DOWN: all endpoints unreachable or degraded at $(date -u)" | tee -a $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: LINE Notify on failure
+        if: failure() && env.LINE_NOTIFY_TOKEN != ''
+        env:
+          LINE_NOTIFY_TOKEN: ${{ secrets.LINE_NOTIFY_TOKEN }}
+        run: |
+          curl -s -X POST https://notify-api.line.me/api/notify \
+            -H "Authorization: Bearer $LINE_NOTIFY_TOKEN" \
+            -F "message=[客服中心] 服務異常 $(date -u +%Y-%m-%dT%H:%M:%SZ) https://cs.sandian.work/api/health"

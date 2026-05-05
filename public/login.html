@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>梵森客服中心 — 登入</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#06C755" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="梵森客服" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bg);
+    }
+    .login-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 24px;
+    }
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow-md);
+    }
+    .login-brand { text-align: center; margin-bottom: 28px; }
+    .login-brand .icon { font-size: 40px; line-height: 1; display: block; margin-bottom: 8px; }
+    .login-brand h1 { font-size: 22px; font-weight: 700; }
+    .login-brand p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--text-sub); margin-bottom: 6px; margin-top: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color 0.15s; background: var(--bg);
+    }
+    input:focus { border-color: var(--primary); background: #fff; }
+    .login-btn {
+      width: 100%; margin-top: 24px; padding: 12px;
+      background: var(--primary); color: #fff; border: none;
+      border-radius: var(--radius-sm); font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .login-btn:hover { background: var(--primary-dark); }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .err { color: var(--err); font-size: 12px; margin-top: 10px; min-height: 18px; text-align: center; }
+    .footer-note { font-size: 11px; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="icon">💬</span>
+        <h1>客服中心</h1>
+        <p>LINE + FB Messenger 統一收件匣</p>
+      </div>
+      <label for="username">帳號</label>
+      <input id="username" type="text" autocomplete="username" placeholder="輸入帳號" />
+      <label for="pw">密碼</label>
+      <input id="pw" type="password" autocomplete="current-password" placeholder="輸入密碼" />
+      <button class="login-btn" id="btn">登入</button>
+      <div id="err" class="err"></div>
+    </div>
+    <div class="footer-note">聖研 AI 辦公室</div>
+  </div>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const submit = async () => {
+      $('#err').textContent = '';
+      $('#btn').disabled = true;
+      $('#btn').textContent = '登入中…';
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ username: $('#username').value, password: $('#pw').value }),
+        });
+        if (r.ok) {
+          location.href = '/';
+        } else {
+          const data = await r.json();
+          $('#err').textContent = data.error || '登入失敗';
+        }
+      } catch {
+        $('#err').textContent = '網路錯誤，請重試';
+      } finally {
+        $('#btn').disabled = false;
+        $('#btn').textContent = '登入';
+      }
+    };
+    $('#btn').addEventListener('click', submit);
+    document.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => {
+      if (e.key === 'Enter') submit();
+    }));
+  </script>
+</body>
+</html>

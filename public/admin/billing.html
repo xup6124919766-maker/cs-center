@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>計費管理 — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; }
+    .card-header { padding: 12px 20px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--bg); }
+    .card-body { padding: 16px 20px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; margin-bottom: 20px; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin: 4px 0 2px; }
+    .kpi-sub { font-size: 12px; color: var(--text-sub); }
+    /* progress bar */
+    .progress-wrap { margin: 12px 0; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+    .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    .progress-fill.green  { background: #4caf50; }
+    .progress-fill.orange { background: #ff9800; }
+    .progress-fill.red    { background: #f44336; }
+    /* bar chart */
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 8px 0; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .bar { width: 100%; background: var(--primary,#1976d2); border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.3s; }
+    .bar-label { font-size: 9px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40px; text-align: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border-light,#f0f0f0); }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .badge.green { background: #e8f5e9; color: #2e7d32; }
+    .badge.orange { background: #fff3e0; color: #e65100; }
+    .badge.red { background: #ffebee; color: #c62828; }
+    .filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filters select, .filters input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; background: var(--surface); color: var(--text); }
+    .btn { padding: 6px 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-primary { background: var(--primary,#1976d2); color: #fff; }
+    .plan-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .plan-form label { font-size: 13px; }
+    @media print { .filters, .btn { display: none; } }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="wrap">
+  <div class="page-title">計費管理</div>
+  <div class="page-sub">LINE / FB 訊息用量、額度警示、費用估算</div>
+
+  <!-- KPI -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi"><div class="kpi-label">本月計費則數</div><div class="kpi-value" id="kpiUnits">-</div><div class="kpi-sub">LINE push/broadcast</div></div>
+    <div class="kpi"><div class="kpi-label">免費額度</div><div class="kpi-value" id="kpiQuota">-</div><div class="kpi-sub" id="kpiPlan">-</div></div>
+    <div class="kpi"><div class="kpi-label">使用率</div><div class="kpi-value" id="kpiPct">-</div><div class="kpi-sub">超過 80% 發警告</div></div>
+    <div class="kpi"><div class="kpi-label">預估超量費用</div><div class="kpi-value" id="kpiCost">-</div><div class="kpi-sub">USD</div></div>
+  </div>
+
+  <!-- 額度進度條 -->
+  <div class="card">
+    <div class="card-header">LINE 月額度</div>
+    <div class="card-body" id="quotaSection">
+      <div class="progress-wrap">
+        <div class="progress-label"><span id="quotaUsed">-</span><span id="quotaLimit">-</span></div>
+        <div class="progress-bar"><div class="progress-fill green" id="quotaBar" style="width:0%"></div></div>
+      </div>
+      <div id="quotaWarning" style="display:none;color:#e65100;font-size:13px;margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- 每日趨勢 -->
+  <div class="card">
+    <div class="card-header">每日計費趨勢（近 30 天）</div>
+    <div class="card-body">
+      <div class="bar-chart" id="barChart"><div style="color:var(--muted);font-size:13px">載入中...</div></div>
+    </div>
+  </div>
+
+  <!-- 用量明細 -->
+  <div class="card">
+    <div class="card-header">用量明細</div>
+    <div class="card-body">
+      <div class="filters">
+        <select id="groupBy">
+          <option value="day">依日</option>
+          <option value="channel">依通道</option>
+          <option value="api_type">依類型</option>
+        </select>
+        <input type="date" id="fromDate"/>
+        <input type="date" id="toDate"/>
+        <button class="btn btn-primary" onclick="loadUsage()">查詢</button>
+      </div>
+      <table>
+        <thead><tr><th>日期/分組</th><th>通道</th><th>計費則數</th><th>筆數</th></tr></thead>
+        <tbody id="usageTable"><tr><td colspan="4">載入中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 方案設定 -->
+  <div class="card" id="planCard">
+    <div class="card-header">方案設定（Admin）</div>
+    <div class="card-body">
+      <div class="plan-form">
+        <label>LINE 方案：
+          <select id="planSelect">
+            <option value="light">Light (200則/月)</option>
+            <option value="medium">Medium (4,000則/月)</option>
+            <option value="heavy">Heavy (25,000則/月)</option>
+          </select>
+        </label>
+        <label>警告閾值：
+          <select id="thresholdSelect">
+            <option value="70">70%</option>
+            <option value="80" selected>80%</option>
+            <option value="90">90%</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" onclick="savePlan()">儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/admin.js"></script>
+<script>
+let csrfToken = '';
+let clientId = null;
+let currentEstimate = null;
+
+const getCSRF = () => document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='))?.split('=')[1] || '';
+
+async function init() {
+  const me = await fetch('/api/me').then(r => r.json()).catch(() => ({}));
+  clientId = me.client_id;
+  csrfToken = getCSRF();
+
+  // set date defaults
+  const now = new Date();
+  document.getElementById('toDate').value = now.toISOString().slice(0, 10);
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('fromDate').value = from.toISOString().slice(0, 10);
+
+  if (me.role !== 'admin') document.getElementById('planCard').style.display = 'none';
+
+  await loadEstimate();
+  await loadUsage();
+  await loadDailyTrend();
+}
+
+async function loadEstimate() {
+  const params = clientId ? `?client_id=${clientId}` : '';
+  const data = await fetch(`/api/billing/cost-estimate${params}`).then(r => r.json()).catch(() => ({}));
+  currentEstimate = data;
+  document.getElementById('kpiUnits').textContent = data.used_units ?? '-';
+  document.getElementById('kpiQuota').textContent = data.quota_free ?? '-';
+  document.getElementById('kpiPlan').textContent = `方案：${data.line_plan ?? '-'}`;
+  const pct = data.usage_pct ?? 0;
+  document.getElementById('kpiPct').textContent = `${pct}%`;
+  document.getElementById('kpiCost').textContent = data.estimated_extra_cost_usd
+    ? `$${Number(data.estimated_extra_cost_usd).toFixed(4)}` : '$0';
+
+  // 進度條
+  const bar = document.getElementById('quotaBar');
+  bar.style.width = `${Math.min(pct, 100)}%`;
+  bar.className = 'progress-fill ' + (pct >= 95 ? 'red' : pct >= 80 ? 'orange' : 'green');
+  document.getElementById('quotaUsed').textContent = `已用 ${data.used_units ?? 0} 則`;
+  document.getElementById('quotaLimit').textContent = `上限 ${data.quota_free ?? 0} 則`;
+
+  const warn = document.getElementById('quotaWarning');
+  if (pct >= 80) {
+    warn.style.display = '';
+    warn.textContent = pct >= 100
+      ? `已超過免費額度，預估超量費用 $${Number(data.estimated_extra_cost_usd || 0).toFixed(4)} USD`
+      : `用量達 ${pct}%，請留意額度`;
+  }
+
+  // 方案設定
+  if (data.line_plan) document.getElementById('planSelect').value = data.line_plan;
+}
+
+async function loadUsage() {
+  const groupBy = document.getElementById('groupBy').value;
+  const from = new Date(document.getElementById('fromDate').value).getTime();
+  const to   = new Date(document.getElementById('toDate').value).getTime() + 86400000;
+  const cid  = clientId ? `&client_id=${clientId}` : '';
+  const url  = `/api/billing/usage?group_by=${groupBy}&from=${from}&to=${to}${cid}`;
+  const data = await fetch(url).then(r => r.json()).catch(() => ({ rows: [] }));
+
+  const tbody = document.getElementById('usageTable');
+  if (!data.rows?.length) { tbody.innerHTML = '<tr><td colspan="4">無資料</td></tr>'; return; }
+
+  tbody.innerHTML = data.rows.map(r => `
+    <tr>
+      <td>${r.day || r.channel || r.api_type || '-'}</td>
+      <td>${r.channel || '-'}</td>
+      <td><strong>${r.cost_units ?? 0}</strong></td>
+      <td>${r.records ?? 0}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadDailyTrend() {
+  const from = Date.now() - 30 * 86400000;
+  const cid  = clientId ? `&client_id=${clientId}` : '';
+  const data = await fetch(`/api/billing/usage?group_by=day&from=${from}${cid}`).then(r => r.json()).catch(() => ({ rows: [] }));
+
+  const rows = data.rows || [];
+  const chart = document.getElementById('barChart');
+  if (!rows.length) { chart.innerHTML = '<div style="color:var(--muted);font-size:13px">暫無資料</div>'; return; }
+
+  const maxVal = Math.max(...rows.map(r => r.cost_units || 0), 1);
+  chart.innerHTML = rows.map(r => {
+    const h = Math.round(((r.cost_units || 0) / maxVal) * 100);
+    return `<div class="bar-col">
+      <div class="bar" style="height:${h}px" title="${r.cost_units || 0} 則"></div>
+      <div class="bar-label">${(r.day || '').slice(5)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function savePlan() {
+  const plan = document.getElementById('planSelect').value;
+  const threshold = document.getElementById('thresholdSelect').value;
+  const cid = clientId || (currentEstimate?.client_id);
+  if (!cid) { alert('需先指定業主'); return; }
+  const r = await fetch('/api/billing/plan', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCSRF() },
+    body: JSON.stringify({ client_id: cid, line_plan: plan, line_quota_warning_threshold: parseInt(threshold) })
+  }).then(r => r.json()).catch(() => ({}));
+  if (r.ok) { alert('儲存成功'); loadEstimate(); }
+  else alert(r.error || '儲存失敗');
+}
+
+init();
+</script>
+</body>
+</html>

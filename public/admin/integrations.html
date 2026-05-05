@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>整合管理 — 客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { overflow: auto; }
+    #app { display: block; min-height: 100vh; }
+    .admin-wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .hook-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+    .hook-item:last-child { border-bottom: none; }
+    .hook-name { font-weight: 600; flex: 1; }
+    .hook-url { font-size: 12px; color: var(--muted); word-break: break-all; }
+    .type-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .type-slack    { background: #fff0d4; color: #9c5700; }
+    .type-discord  { background: #edeeff; color: #5865f2; }
+    .type-generic  { background: #f0f2f5; color: var(--text-sub); }
+    .btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger  { background: var(--err); color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .form-group input, .form-group select { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 13px; font-family: inherit; }
+    .events-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .events-grid label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+    .nav-links { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .nav-links a { font-size: 12px; color: var(--text-sub); text-decoration: none; border: 1px solid var(--border); padding: 4px 10px; border-radius: var(--radius-sm); }
+    .events-preview { font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div id="app">
+<div class="admin-wrap">
+  <div class="nav-links">
+    <a href="/">主控台</a>
+    <a href="/admin.html">設定</a>
+    <a href="/admin/rules.html">規則</a>
+    <a href="/admin/integrations.html">整合</a>
+    <a href="/admin/broadcasts.html">廣播</a>
+    <a href="/admin/analytics.html">報表</a>
+  </div>
+  <div class="page-title">整合管理</div>
+  <div class="page-sub">設定 Slack、Discord 或自訂 Webhook，在特定事件發生時自動通知</div>
+
+  <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <button class="btn btn-primary" onclick="openCreateModal()">+ 新增 Webhook</button>
+  </div>
+
+  <div class="card">
+    <div id="hooks-list"><p style="color:var(--muted);text-align:center;padding:20px 0;">載入中...</p></div>
+  </div>
+
+  <div class="card" style="margin-top:24px;">
+    <div style="font-size:13px; font-weight:600; margin-bottom:12px;">支援的事件說明</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px; color:var(--text-sub);">
+      <div><strong>alert:urgent</strong> — 規則引擎觸發緊急警示</div>
+      <div><strong>broadcast:done</strong> — 廣播群發完成</div>
+      <div><strong>mention</strong> — 有人在備忘中被 @提及</div>
+      <div><strong>order:new</strong> — 新訂單透過 Webhook 進來</div>
+      <div><strong>csat:received</strong> — 顧客 CSAT 評分 ≤2 分</div>
+      <div><strong>game:winner</strong> — 遊戲抽中頭獎</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">新增 Webhook</div>
+    <div class="form-group">
+      <label>名稱</label>
+      <input type="text" id="f-name" placeholder="例：Slack 緊急通知" />
+    </div>
+    <div class="form-group">
+      <label>Webhook URL</label>
+      <input type="url" id="f-url" placeholder="https://hooks.slack.com/services/..." />
+    </div>
+    <div class="form-group">
+      <label>類型</label>
+      <select id="f-type" onchange="onTypeChange()">
+        <option value="slack">Slack</option>
+        <option value="discord">Discord</option>
+        <option value="generic">Generic（HMAC 簽名）</option>
+      </select>
+    </div>
+    <div class="form-group" id="secret-group" style="display:none">
+      <label>簽名密鑰（Secret）</label>
+      <input type="text" id="f-secret" placeholder="可選，用於 HMAC-SHA256 驗簽" />
+    </div>
+    <div class="form-group">
+      <label>訂閱事件</label>
+      <div class="events-grid" id="events-grid"></div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveHook()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  return r.json();
+};
+
+let hooks = [];
+let supportedEvents = [];
+let clientId = null;
+let editingId = null;
+
+const init = async () => {
+  const me = await api('GET', '/api/me');
+  clientId = me.client_id;
+  await loadHooks();
+};
+
+const loadHooks = async () => {
+  const data = await api('GET', `/api/webhooks-out?client_id=${clientId || ''}`);
+  hooks = data.webhooks || [];
+  supportedEvents = data.supported_events || [];
+  renderHooks();
+};
+
+const typeLabel = { slack: 'Slack', discord: 'Discord', generic: 'Generic' };
+
+const renderHooks = () => {
+  const el = document.getElementById('hooks-list');
+  if (!hooks.length) { el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px 0;">尚無 Webhook，點右上角新增</p>'; return; }
+  el.innerHTML = hooks.map(h => {
+    let evts = []; try { evts = JSON.parse(h.events); } catch {}
+    return `<div class="hook-item">
+      <div style="flex:1">
+        <div class="hook-name">${h.name} <span class="type-badge type-${h.type}">${typeLabel[h.type]}</span> ${h.enabled ? '' : '<span style="font-size:11px;color:var(--muted)">（停用）</span>'}</div>
+        <div class="hook-url">${h.url.slice(0, 60)}...</div>
+        <div class="events-preview">事件：${evts.join(', ')}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="testHook(${h.id})">測試</button>
+        <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="editHook(${h.id})">編輯</button>
+        <button class="btn btn-danger" style="font-size:12px;padding:4px 10px" onclick="deleteHook(${h.id})">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+};
+
+const onTypeChange = () => {
+  const t = document.getElementById('f-type').value;
+  document.getElementById('secret-group').style.display = t === 'generic' ? 'flex' : 'none';
+};
+
+const openCreateModal = () => {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '新增 Webhook';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-url').value = '';
+  document.getElementById('f-type').value = 'slack';
+  document.getElementById('f-secret').value = '';
+  renderEventsGrid([]);
+  onTypeChange();
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+const editHook = (id) => {
+  const hook = hooks.find(h => h.id === id);
+  if (!hook) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = '編輯 Webhook';
+  document.getElementById('f-name').value = hook.name;
+  document.getElementById('f-url').value = hook.url;
+  document.getElementById('f-type').value = hook.type;
+  document.getElementById('f-secret').value = hook.secret || '';
+  let evts = []; try { evts = JSON.parse(hook.events); } catch {}
+  renderEventsGrid(evts);
+  onTypeChange();
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+const renderEventsGrid = (selected = []) => {
+  const grid = document.getElementById('events-grid');
+  grid.innerHTML = supportedEvents.map(e => `
+    <label>
+      <input type="checkbox" value="${e}" ${selected.includes(e) ? 'checked' : ''} />
+      ${e}
+    </label>
+  `).join('');
+};
+
+const getSelectedEvents = () =>
+  Array.from(document.querySelectorAll('#events-grid input:checked')).map(i => i.value);
+
+const saveHook = async () => {
+  const events = getSelectedEvents();
+  if (!events.length) return alert('請至少選擇一個事件');
+  const body = {
+    client_id: clientId,
+    name: document.getElementById('f-name').value.trim(),
+    url: document.getElementById('f-url').value.trim(),
+    type: document.getElementById('f-type').value,
+    events,
+    secret: document.getElementById('f-secret').value.trim() || undefined,
+  };
+  if (!body.name) return alert('請填寫名稱');
+  if (!body.url) return alert('請填寫 URL');
+  const method = editingId ? 'PUT' : 'POST';
+  const path = editingId ? `/api/webhooks-out/${editingId}` : '/api/webhooks-out';
+  const r = await api(method, path, body);
+  if (r.ok || r.id) { closeModal(); loadHooks(); }
+  else alert(r.error || '儲存失敗');
+};
+
+const testHook = async (id) => {
+  const r = await api('POST', `/api/webhooks-out/${id}/test`, { client_id: clientId });
+  alert(r.message || (r.ok ? '測試訊息已送出' : r.error || '送出失敗'));
+};
+
+const deleteHook = async (id) => {
+  if (!confirm('確定要刪除此 Webhook 嗎？')) return;
+  await api('DELETE', `/api/webhooks-out/${id}?client_id=${clientId}`);
+  loadHooks();
+};
+
+const closeModal = () => document.getElementById('edit-modal').classList.remove('open');
+document.getElementById('edit-modal').addEventListener('click', e => { if (e.target === document.getElementById('edit-modal')) closeModal(); });
+
+init();
+</script>
+</body>
+</html>

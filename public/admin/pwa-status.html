@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>PWA 狀態 — 梵森客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#06C755" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { overflow: auto; height: auto; min-height: 100vh; padding-bottom: 40px; }
+
+    .pwa-page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    .pwa-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+      letter-spacing: -0.4px;
+    }
+    .pwa-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .status-card h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-light);
+      font-size: 14px;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-row label { color: var(--text-secondary); font-weight: 500; }
+
+    .badge-ok      { background: #dcfce7; color: #15803d; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .badge-warn    { background: #fef3c7; color: #92400e; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .badge-err     { background: #fee2e2; color: #b91c1c; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .badge-unknown { background: var(--border-light); color: var(--muted); padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    #sw-scope-val,
+    #sw-state-val { font-family: monospace; font-size: 12px; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 13.96 2.54 15.78 3.47 17.33L2.03 21.97L6.77 20.56C8.28 21.47 10.08 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="#06C755"/></svg>
+    <span>PWA 狀態</span>
+  </div>
+  <div id="topbar-right">
+    <a href="/index.html">返回客服中心</a>
+    <a href="/admin/analytics.html">報表</a>
+  </div>
+</div>
+
+<div class="pwa-page">
+  <div class="pwa-title">PWA 狀態檢測</div>
+  <div class="pwa-sub">確認 Service Worker、通知權限與安裝狀態是否正常。</div>
+
+  <!-- SW 狀態 -->
+  <div class="status-card">
+    <h2>Service Worker</h2>
+    <div class="status-row">
+      <label>支援度</label>
+      <span id="sw-support">—</span>
+    </div>
+    <div class="status-row">
+      <label>註冊狀態</label>
+      <span id="sw-status">—</span>
+    </div>
+    <div class="status-row">
+      <label>SW 狀態</label>
+      <span id="sw-state-val">—</span>
+    </div>
+    <div class="status-row">
+      <label>Scope</label>
+      <span id="sw-scope-val">—</span>
+    </div>
+    <div class="action-row" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="checkSW()">重新偵測</button>
+      <button class="btn btn-secondary" onclick="unregisterSW()">登出 SW（除錯用）</button>
+    </div>
+  </div>
+
+  <!-- 通知狀態 -->
+  <div class="status-card">
+    <h2>推播通知</h2>
+    <div class="status-row">
+      <label>瀏覽器支援</label>
+      <span id="notif-support">—</span>
+    </div>
+    <div class="status-row">
+      <label>目前權限</label>
+      <span id="notif-perm">—</span>
+    </div>
+    <div class="action-row" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="requestNotif()">請求通知權限</button>
+      <button class="btn btn-secondary" onclick="testNotif()">測試通知</button>
+    </div>
+  </div>
+
+  <!-- 安裝狀態 -->
+  <div class="status-card">
+    <h2>App 安裝</h2>
+    <div class="status-row">
+      <label>顯示模式</label>
+      <span id="display-mode">—</span>
+    </div>
+    <div class="status-row">
+      <label>是否已安裝</label>
+      <span id="install-status">—</span>
+    </div>
+    <div class="status-row">
+      <label>Manifest</label>
+      <span id="manifest-status">—</span>
+    </div>
+    <div class="action-row" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="checkManifest()">驗證 Manifest</button>
+    </div>
+  </div>
+
+  <!-- Cache 狀態 -->
+  <div class="status-card">
+    <h2>離線快取</h2>
+    <div class="status-row">
+      <label>Cache API 支援</label>
+      <span id="cache-support">—</span>
+    </div>
+    <div class="status-row">
+      <label>快取項目數</label>
+      <span id="cache-count">—</span>
+    </div>
+    <div class="action-row" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="checkCache()">查看快取</button>
+      <button class="btn btn-secondary" onclick="clearCache()" style="color:var(--err);">清除快取</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ─── Toast ───
+const showToast = (msg, type = '') => {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast-item ${type === 'success' ? 'success' : type === 'error' ? 'error' : 'default'}`;
+  el.innerHTML = `<span class="toast-msg">${msg}</span><button class="toast-close" onclick="this.closest('.toast-item').remove()">×</button>`;
+  c.appendChild(el);
+  setTimeout(() => { el.classList.add('hiding'); setTimeout(() => el.remove(), 220); }, 4000);
+};
+
+const badge = (text, type) => `<span class="badge-${type}">${text}</span>`;
+
+// ─── SW ───
+async function checkSW() {
+  const supEl = document.getElementById('sw-support');
+  const stEl  = document.getElementById('sw-status');
+  const stateEl = document.getElementById('sw-state-val');
+  const scopeEl = document.getElementById('sw-scope-val');
+
+  if (!('serviceWorker' in navigator)) {
+    supEl.innerHTML = badge('不支援', 'err');
+    stEl.innerHTML  = badge('N/A', 'unknown');
+    return;
+  }
+  supEl.innerHTML = badge('支援', 'ok');
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    if (!reg) {
+      stEl.innerHTML = badge('未註冊', 'warn');
+      stateEl.textContent = '—';
+      scopeEl.textContent = '—';
+      return;
+    }
+    stEl.innerHTML = badge('已註冊', 'ok');
+    const sw = reg.active || reg.installing || reg.waiting;
+    stateEl.textContent = sw ? sw.state : '—';
+    scopeEl.textContent = reg.scope;
+  } catch (e) {
+    stEl.innerHTML = badge('錯誤', 'err');
+    stateEl.textContent = e.message;
+  }
+}
+
+async function unregisterSW() {
+  const regs = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(regs.map(r => r.unregister()));
+  showToast('SW 已登出，請重新整理', 'success');
+  await checkSW();
+}
+
+// ─── 通知 ───
+function checkNotif() {
+  const supEl  = document.getElementById('notif-support');
+  const permEl = document.getElementById('notif-perm');
+
+  if (!('Notification' in window)) {
+    supEl.innerHTML  = badge('不支援', 'err');
+    permEl.innerHTML = badge('N/A', 'unknown');
+    return;
+  }
+  supEl.innerHTML = badge('支援', 'ok');
+
+  const perm = Notification.permission;
+  const typeMap = { granted: 'ok', denied: 'err', default: 'warn' };
+  const labelMap = { granted: '已授權', denied: '已拒絕', default: '尚未決定' };
+  permEl.innerHTML = badge(labelMap[perm] || perm, typeMap[perm] || 'unknown');
+}
+
+async function requestNotif() {
+  if (!('Notification' in window)) { showToast('此瀏覽器不支援通知', 'error'); return; }
+  const perm = await Notification.requestPermission();
+  checkNotif();
+  if (perm === 'granted') showToast('通知已授權', 'success');
+  else showToast('通知未授權：' + perm, 'error');
+}
+
+function testNotif() {
+  if (Notification.permission !== 'granted') {
+    showToast('請先授權通知', 'error');
+    return;
+  }
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification('梵森客服測試通知', {
+      body: '這是一則測試通知，表示 Push 通知正常運作。',
+      icon: '/icons/icon.svg',
+      badge: '/icons/icon.svg',
+      vibrate: [200, 100, 200],
+      tag: 'pwa-test',
+    });
+    showToast('測試通知已送出', 'success');
+  }).catch(() => showToast('SW 尚未就緒', 'error'));
+}
+
+// ─── 安裝 / Manifest ───
+function checkInstall() {
+  const modeEl    = document.getElementById('display-mode');
+  const installEl = document.getElementById('install-status');
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  modeEl.textContent = isStandalone ? 'standalone（已安裝模式）' : 'browser（一般瀏覽器）';
+  installEl.innerHTML = isStandalone
+    ? badge('已安裝', 'ok')
+    : badge('尚未安裝', 'warn');
+}
+
+async function checkManifest() {
+  const el = document.getElementById('manifest-status');
+  try {
+    const r = await fetch('/manifest.webmanifest');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const ct = r.headers.get('content-type') || '';
+    const json = await r.json();
+    if (json.name && json.icons?.length) {
+      el.innerHTML = badge('正常', 'ok');
+      showToast(`Manifest OK — name: ${json.name}, icons: ${json.icons.length} 個`, 'success');
+    } else {
+      el.innerHTML = badge('缺欄位', 'warn');
+    }
+  } catch (e) {
+    el.innerHTML = badge('錯誤', 'err');
+    showToast('Manifest 讀取失敗：' + e.message, 'error');
+  }
+}
+
+// ─── Cache ───
+async function checkCache() {
+  const supEl   = document.getElementById('cache-support');
+  const countEl = document.getElementById('cache-count');
+
+  if (!('caches' in window)) {
+    supEl.innerHTML  = badge('不支援', 'err');
+    countEl.textContent = '0';
+    return;
+  }
+  supEl.innerHTML = badge('支援', 'ok');
+
+  try {
+    const keys = await caches.keys();
+    let total = 0;
+    for (const k of keys) {
+      const c = await caches.open(k);
+      const items = await c.keys();
+      total += items.length;
+    }
+    countEl.textContent = `${total} 個（共 ${keys.length} 個 Cache Store）`;
+  } catch (e) {
+    countEl.textContent = '讀取失敗：' + e.message;
+  }
+}
+
+async function clearCache() {
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    showToast(`已清除 ${keys.length} 個 Cache Store`, 'success');
+    await checkCache();
+  } catch (e) {
+    showToast('清除失敗：' + e.message, 'error');
+  }
+}
+
+// ─── 初始化 ───
+checkSW();
+checkNotif();
+checkInstall();
+checkCache();
+checkManifest();
+</script>
+</body>
+</html>

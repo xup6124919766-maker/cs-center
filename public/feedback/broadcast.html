@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>廣播評價</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 24px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  }
+  .brand {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 4px;
+    color: #1a1a2e;
+  }
+  .preview {
+    background: #f8f8fb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.6;
+    margin: 16px 0;
+    border-left: 3px solid #667eea;
+  }
+  .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .fb-btn {
+    flex: 1;
+    padding: 12px 6px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fafafa;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    color: #444;
+    line-height: 1.4;
+  }
+  .fb-btn:hover { border-color: #667eea; background: #f0f0ff; }
+  .fb-btn.selected.useful { border-color: #34c759; background: #edfff4; color: #1b7c3e; }
+  .fb-btn.selected.not_useful { border-color: #ff9500; background: #fff8ee; color: #7c4800; }
+  .fb-btn.selected.unsubscribe { border-color: #ff3b30; background: #fff0ef; color: #b00; }
+  .fb-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+  .comment-wrap { margin-bottom: 16px; }
+  .comment-wrap label {
+    font-size: 12px; color: #888; display: block; margin-bottom: 6px;
+  }
+  textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px; font-size: 13px;
+    font-family: inherit; resize: vertical;
+    min-height: 72px; color: #333;
+    transition: border 0.15s;
+  }
+  textarea:focus { outline: none; border-color: #667eea; }
+  .submit-btn {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .submit-btn:not(:disabled):hover { opacity: 0.9; }
+  .thank-you {
+    display: none;
+    text-align: center;
+    padding: 16px 0 8px;
+  }
+  .thank-you .ty-icon { font-size: 48px; margin-bottom: 10px; }
+  .thank-you p { font-size: 15px; color: #444; line-height: 1.6; }
+  .err { color: #d00; font-size: 13px; margin-top: 8px; text-align: center; }
+  .loading { text-align: center; color: #999; font-size: 14px; padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loadingState" class="loading">載入中...</div>
+
+  <div id="mainContent" style="display:none">
+    <div class="brand" id="brandName"></div>
+    <h1>這則訊息對您有幫助嗎？</h1>
+    <div class="preview" id="contentPreview"></div>
+
+    <div class="label">請選擇您的回饋</div>
+    <div class="btn-group">
+      <button class="fb-btn" data-val="useful" onclick="select(this)">
+        <span class="fb-icon">👍</span>有幫助
+      </button>
+      <button class="fb-btn" data-val="not_useful" onclick="select(this)">
+        <span class="fb-icon">👎</span>沒幫助
+      </button>
+      <button class="fb-btn" data-val="unsubscribe" onclick="select(this)">
+        <span class="fb-icon">🚫</span>取消訂閱
+      </button>
+    </div>
+
+    <div class="comment-wrap">
+      <label>留下您的想法（選填）</label>
+      <textarea id="comment" placeholder="告訴我們您的感受..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled onclick="submit()">送出評價</button>
+    <div class="err" id="errMsg"></div>
+  </div>
+
+  <div class="thank-you" id="thankYou">
+    <div class="ty-icon">🙏</div>
+    <p>感謝您的回饋！<br>您的意見對我們非常重要。</p>
+  </div>
+
+  <div id="alreadyRated" style="display:none;text-align:center;padding:20px 0">
+    <div style="font-size:36px;margin-bottom:8px">✅</div>
+    <p style="font-size:14px;color:#666">您已送過這則廣播的評價，謝謝！</p>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const broadcastId = params.get('broadcast_id');
+const customerId = params.get('customer_id');
+let selectedFeedback = null;
+
+const show = (id) => {
+  ['loadingState','mainContent','thankYou','alreadyRated'].forEach(s => {
+    document.getElementById(s).style.display = (s === id) ? (id === 'mainContent' ? 'block' : (id === 'thank-you' ? 'block' : 'block')) : 'none';
+  });
+  if (id === 'thankYou') {
+    document.getElementById('thankYou').style.display = 'block';
+  }
+};
+
+const loadInfo = async () => {
+  if (!broadcastId) {
+    document.getElementById('loadingState').textContent = '連結無效';
+    return;
+  }
+  try {
+    const qs = customerId ? `?customer_id=${encodeURIComponent(customerId)}` : '';
+    const r = await fetch(`/api/feedback/broadcast/${broadcastId}/info${qs}`);
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('loadingState').textContent = data.error || '載入失敗';
+      return;
+    }
+    if (data.already_rated) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('alreadyRated').style.display = 'block';
+      return;
+    }
+    document.getElementById('brandName').textContent = data.business || '客服中心';
+    document.getElementById('contentPreview').textContent = data.content_preview || data.name;
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+  } catch {
+    document.getElementById('loadingState').textContent = '網路錯誤，請重新整理';
+  }
+};
+
+function select(btn) {
+  document.querySelectorAll('.fb-btn').forEach(b => {
+    b.classList.remove('selected', 'useful', 'not_useful', 'unsubscribe');
+  });
+  selectedFeedback = btn.dataset.val;
+  btn.classList.add('selected', selectedFeedback);
+  document.getElementById('submitBtn').disabled = false;
+}
+
+async function submit() {
+  if (!selectedFeedback) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '送出中...';
+  document.getElementById('errMsg').textContent = '';
+
+  const body = {
+    feedback: selectedFeedback,
+    comment: document.getElementById('comment').value.trim() || undefined,
+  };
+  if (customerId) body.customer_id = parseInt(customerId, 10);
+
+  try {
+    const r = await fetch(`/api/feedback/broadcast/${broadcastId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('errMsg').textContent = data.error || '送出失敗，請稍後再試';
+      btn.disabled = false;
+      btn.textContent = '送出評價';
+      return;
+    }
+    // 顯示感謝
+    document.getElementById('mainContent').style.display = 'none';
+    document.getElementById('thankYou').style.display = 'block';
+    // 3 秒後嘗試關閉
+    setTimeout(() => {
+      try { window.close(); } catch {}
+    }, 3000);
+  } catch {
+    document.getElementById('errMsg').textContent = '網路錯誤，請稍後再試';
+    btn.disabled = false;
+    btn.textContent = '送出評價';
+  }
+}
+
+loadInfo();
+</script>
+</body>
+</html>

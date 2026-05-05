@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>設定 — 客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* ─── Admin 專用補充樣式 ─── */
+    body { overflow: auto; }
+    #app { display: block; min-height: 100vh; }
+
+    .admin-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .page-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    /* 業主卡片 */
+    .client-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .client-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      user-select: none;
+    }
+    .client-card-header:hover { background: var(--border-light); }
+    .client-card-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .client-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .token-pill {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+    .token-pill.green  { background: #e8f5e9; color: #2e7d32; }
+    .token-pill.yellow { background: #fff8e1; color: #f57f17; }
+    .token-pill.red    { background: #ffebee; color: #c62828; }
+    .collapse-icon { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+    .collapse-icon.open { transform: rotate(180deg); }
+
+    .client-card-body { padding: 20px; display: none; }
+    .client-card-body.open { display: block; }
+
+    /* 區塊標題 */
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      margin-top: 20px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .section-label:first-child { margin-top: 0; }
+
+    /* 表單欄位 */
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .form-group label {
+      font-size: 12px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+    .form-group input,
+    .form-group textarea {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus { border-color: var(--primary); background: #fff; }
+    .form-group input[readonly] { color: var(--muted); cursor: default; }
+    .form-group textarea { resize: vertical; min-height: 72px; }
+
+    /* Token 狀態 */
+    .token-status {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .token-status.set   { border-color: #a5d6a7; background: #f1f8e9; color: #2e7d32; }
+    .token-status.unset { border-color: #ef9a9a; background: #fff5f5; color: #c62828; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot.green { background: #43a047; }
+    .dot.red   { background: #e53935; }
+
+    /* Webhook URL 區塊 */
+    .webhook-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .webhook-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .webhook-url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .webhook-url {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 12px;
+      color: var(--text);
+      flex: 1;
+      word-break: break-all;
+    }
+    .copy-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .copy-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .copy-btn.copied { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Tag input */
+    .tag-input-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      background: var(--bg);
+      min-height: 38px;
+      cursor: text;
+      transition: border-color 0.15s;
+    }
+    .tag-input-wrap:focus-within { border-color: var(--primary); background: #fff; }
+    .tag-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+    .tag-chip button {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 0 2px;
+      opacity: 0.8;
+    }
+    .tag-chip button:hover { opacity: 1; }
+    .tag-input-wrap input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 13px;
+      min-width: 80px;
+      flex: 1;
+      font-family: inherit;
+    }
+
+    /* 操作按鈕列 */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* 通知 toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--text);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      z-index: 9999;
+      display: none;
+      box-shadow: var(--shadow-md);
+    }
+    #toast.show { display: block; animation: fadeIn 0.2s; }
+    #toast.error { background: var(--err); }
+    #toast.success { background: #43a047; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* 業主切換 selector */
+    #client-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .client-tab {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--text-sub);
+      transition: all 0.15s;
+    }
+    .client-tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .client-tab:hover:not(.active) { background: var(--bg); }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+  <div class="logo">⚙️ <span>設定</span></div>
+  <div id="topbar-right">
+    <span id="user-info"></span>
+    <a href="/dashboard.html" style="font-size:12px; color:var(--text-sub); text-decoration:none; border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm);">儀表板</a>
+    <a href="/" style="font-size:12px; color:var(--text-sub); text-decoration:none; border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm);">客服</a>
+    <button id="logout-btn">登出</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="admin-wrap">
+    <div class="page-title">業主設定</div>
+    <div class="page-sub">管理 LINE / FB 連接 Token 與品牌 DNA</div>
+
+    <!-- 業主切換 -->
+    <div id="client-selector"></div>
+
+    <!-- 業主卡片容器 -->
+    <div id="clients-container">
+      <div class="text-muted text-sm">載入中…</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/admin.js"></script>
+</body>
+</html>

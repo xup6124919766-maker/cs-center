@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>圖文選單 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-green { background: #34c759; color: #fff; }
+  .btn-gray { background: #e5e5ea; color: #333; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+  .badge-draft { background: #e5e5ea; color: #666; }
+  .badge-active { background: #d1f7e0; color: #1b7c3e; }
+  .badge-archived { background: #f0f0f0; color: #999; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 580px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 40px auto; }
+  #msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 14px; }
+  #msg.ok { background: #d1f7e0; color: #1b7c3e; display: block; }
+  #msg.err { background: #ffe0e0; color: #b00; display: block; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ecommerce.html">訂單</a>
+  <a href="/admin/rich-menus.html" class="active">圖文選單</a>
+  <a href="/admin/journeys.html">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div id="msg"></div>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2 style="margin:0">圖文選單管理（LINE Rich Menu）</h2>
+    <button class="btn btn-primary" onclick="openCreate()">+ 新增選單</button>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>名稱</th><th>狀態</th><th>預設</th><th>chat bar</th><th>操作</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="rulesPanel" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">「<span id="rulesMenuName"></span>」個人化規則</h3>
+      <button class="btn btn-primary" onclick="openAddRule()" style="padding:6px 12px;font-size:13px">+ 加規則</button>
+    </div>
+    <table>
+      <thead><tr><th>條件 JSON</th><th>Priority</th><th>操作</th></tr></thead>
+      <tbody id="rulesBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modalTitle">新增圖文選單</h3>
+    <div class="form-row">
+      <div><label>名稱</label><input id="f_name" placeholder="VIP 專屬選單"></div>
+      <div><label>大小</label>
+        <select id="f_size">
+          <option value="large">Large (2500x1686)</option>
+          <option value="compact">Compact (2500x843)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>Chat Bar 文字</label><input id="f_chatbar" placeholder="點擊查看選單"></div>
+      <div><label>背景圖 URL</label><input id="f_bg" placeholder="https://..."></div>
+    </div>
+    <div class="form-row single">
+      <div><label>Areas JSON（區域設定，陣列格式）</label>
+        <textarea id="f_areas" rows="6" placeholder='[{"bounds":{"x":0,"y":0,"width":833,"height":843},"action":{"type":"uri","uri":"https://example.com"}}]'></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-gray" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveMenu()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ruleOverlay" onclick="closeRuleModal()">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+    <h3>新增個人化規則</h3>
+    <div class="form-row single">
+      <div><label>條件 JSON（tags 陣列 + custom_fields）</label>
+        <textarea id="r_condition" rows="5" placeholder='{"tags":["VIP"]}'></textarea>
+      </div>
+    </div>
+    <div><label>Priority（數字越大越優先）</label><input id="r_priority" type="number" value="0"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-gray" onclick="closeRuleModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveRule()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let menus = [];
+let currentMenuId = null;
+let editId = null;
+
+const show = (msg, type) => { const el = document.getElementById('msg'); el.textContent = msg; el.className = type; };
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+};
+
+const load = async () => {
+  const data = await api('GET', '/api/rich-menus');
+  menus = data.rich_menus || [];
+  render();
+};
+
+const render = () => {
+  const tbody = document.getElementById('listBody');
+  if (!menus.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999;text-align:center">尚無圖文選單</td></tr>'; return; }
+  tbody.innerHTML = menus.map(m => `
+    <tr>
+      <td>${m.name}</td>
+      <td><span class="badge badge-${m.status}">${m.status}</span></td>
+      <td>${m.is_default ? '✅' : '-'}</td>
+      <td>${m.chat_bar_text || '-'}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-green" style="padding:3px 8px;font-size:12px" onclick="syncMenu(${m.id})">同步 LINE</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="setDefault(${m.id})">設預設</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="viewRules(${m.id}, '${m.name}')">規則</button>
+        <button class="btn btn-red" style="padding:3px 8px;font-size:12px" onclick="deleteMenu(${m.id})">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+};
+
+const openCreate = () => {
+  editId = null;
+  document.getElementById('modalTitle').textContent = '新增圖文選單';
+  ['f_name','f_chatbar','f_bg'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_areas').value = '';
+  document.getElementById('overlay').style.display = 'block';
+};
+const closeModal = () => { document.getElementById('overlay').style.display = 'none'; };
+const closeRuleModal = () => { document.getElementById('ruleOverlay').style.display = 'none'; };
+
+const saveMenu = async () => {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { alert('請輸入名稱'); return; }
+  let areas = [];
+  try { areas = JSON.parse(document.getElementById('f_areas').value || '[]'); } catch { alert('areas JSON 格式錯誤'); return; }
+
+  const body = {
+    name,
+    size: document.getElementById('f_size').value,
+    chat_bar_text: document.getElementById('f_chatbar').value.trim() || null,
+    background_image_url: document.getElementById('f_bg').value.trim() || null,
+    areas,
+  };
+
+  const r = await api('POST', '/api/rich-menus', body);
+  if (r.ok) { show('選單建立成功', 'ok'); closeModal(); load(); } else { show(r.error, 'err'); }
+};
+
+const syncMenu = async (id) => {
+  const r = await api('POST', `/api/rich-menus/${id}/sync`, {});
+  show(r.ok ? '已同步（stub）：等 LINE token 後實際上傳' : r.error, r.ok ? 'ok' : 'err');
+  load();
+};
+
+const setDefault = async (id) => {
+  const r = await api('POST', `/api/rich-menus/${id}/set-default`, {});
+  if (r.ok) { show('已設為預設', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+
+const deleteMenu = async (id) => {
+  if (!confirm('確定刪除？')) return;
+  const r = await api('DELETE', `/api/rich-menus/${id}`);
+  if (r.ok) { show('已刪除', 'ok'); load(); document.getElementById('rulesPanel').style.display = 'none'; } else { show(r.error, 'err'); }
+};
+
+const viewRules = async (id, name) => {
+  currentMenuId = id;
+  document.getElementById('rulesMenuName').textContent = name;
+  document.getElementById('rulesPanel').style.display = 'block';
+  const data = await api('GET', `/api/rich-menus/${id}/rules`);
+  const rules = data.rules || [];
+  const tbody = document.getElementById('rulesBody');
+  if (!rules.length) { tbody.innerHTML = '<tr><td colspan="3" style="color:#999;text-align:center">尚無規則</td></tr>'; return; }
+  tbody.innerHTML = rules.map(r => `
+    <tr>
+      <td><code style="font-size:12px">${r.condition}</code></td>
+      <td>${r.priority}</td>
+      <td><button class="btn btn-red" style="padding:3px 8px;font-size:12px" onclick="deleteRule(${r.id})">刪除</button></td>
+    </tr>
+  `).join('');
+};
+
+const openAddRule = () => {
+  document.getElementById('r_condition').value = '{"tags":["VIP"]}';
+  document.getElementById('r_priority').value = '0';
+  document.getElementById('ruleOverlay').style.display = 'block';
+};
+
+const saveRule = async () => {
+  let cond;
+  try { cond = JSON.parse(document.getElementById('r_condition').value); } catch { alert('條件 JSON 格式錯誤'); return; }
+  const r = await api('POST', `/api/rich-menus/${currentMenuId}/rules`, { condition: cond, priority: parseInt(document.getElementById('r_priority').value) });
+  if (r.ok) { show('規則新增', 'ok'); closeRuleModal(); viewRules(currentMenuId, document.getElementById('rulesMenuName').textContent); } else { show(r.error, 'err'); }
+};
+
+const deleteRule = async (id) => {
+  const r = await api('DELETE', `/api/rich-menus/rules/${id}`);
+  if (r.ok) { show('規則刪除', 'ok'); viewRules(currentMenuId, document.getElementById('rulesMenuName').textContent); } else { show(r.error, 'err'); }
+};
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>訂單管理 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-gray { background: #e5e5ea; color: #333; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+  .badge-pending { background: #e5e5ea; color: #666; }
+  .badge-paid { background: #cce5ff; color: #004085; }
+  .badge-shipped { background: #fff3cd; color: #856404; }
+  .badge-delivered { background: #d1f7e0; color: #1b7c3e; }
+  .badge-cancelled { background: #ffe0e0; color: #b00; }
+  .badge-refunded { background: #f3d6f5; color: #6f42c1; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 560px; width: 90%; margin: 40px auto; }
+  #msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 14px; }
+  #msg.ok { background: #d1f7e0; color: #1b7c3e; display: block; }
+  #msg.err { background: #ffe0e0; color: #b00; display: block; }
+  .tabs { display: flex; gap: 0; border-bottom: 2px solid #e5e5ea; margin-bottom: 16px; }
+  .tab { padding: 8px 20px; cursor: pointer; font-size: 14px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab.active { color: #5856d6; border-bottom-color: #5856d6; font-weight: 600; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ecommerce.html" class="active">訂單</a>
+  <a href="/admin/rich-menus.html">圖文選單</a>
+  <a href="/admin/journeys.html">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div id="msg"></div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('orders', this)">訂單管理</div>
+    <div class="tab" onclick="switchTab('cart', this)">廢棄購物車</div>
+  </div>
+
+  <div id="tab-orders">
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;align-items:center">
+        <h2 style="margin:0">訂單列表</h2>
+        <select id="statusFilter" onchange="loadOrders()" style="width:auto;padding:4px 8px;font-size:13px">
+          <option value="">全部</option>
+          <option value="pending">待處理</option>
+          <option value="paid">已付款</option>
+          <option value="shipped">已出貨</option>
+          <option value="delivered">已送達</option>
+          <option value="cancelled">已取消</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="openCreate()">+ 手動建單</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>訂單號</th><th>顧客</th><th>來源</th><th>狀態</th><th>金額</th><th>建立</th><th>操作</th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-cart" style="display:none">
+    <div class="card"><h2>廢棄購物車</h2></div>
+    <div class="card">
+      <table>
+        <thead><tr><th>顧客</th><th>金額</th><th>事件類型</th><th>建立時間</th><th>操作</th></tr></thead>
+        <tbody id="cartBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>手動建單</h3>
+    <div class="form-row">
+      <div><label>訂單號</label><input id="f_eid" placeholder="ORD-2024-001"></div>
+      <div><label>來源</label>
+        <select id="f_source">
+          <option value="manual">手動</option>
+          <option value="shopify">Shopify</option>
+          <option value="shopline">SHOPLINE</option>
+          <option value="91app">91APP</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>顧客 ID（可選）</label><input id="f_cust" type="number" placeholder="留空"></div>
+      <div><label>狀態</label>
+        <select id="f_status">
+          <option value="pending">待處理</option>
+          <option value="paid">已付款</option>
+          <option value="shipped">已出貨</option>
+          <option value="delivered">已送達</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>金額</label><input id="f_amount" type="number" placeholder="990"></div>
+      <div><label>物流追蹤號</label><input id="f_tracking" placeholder="TW123456789"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-gray" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="createOrder()">建立</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const show = (msg, type) => {
+  const el = document.getElementById('msg');
+  el.textContent = msg;
+  el.className = type;
+};
+const api = async (method, path, body) => {
+  const r = await fetch(path, { method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+};
+
+const switchTab = (tab, el) => {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-orders').style.display = tab === 'orders' ? '' : 'none';
+  document.getElementById('tab-cart').style.display = tab === 'cart' ? '' : 'none';
+  if (tab === 'cart') loadCart();
+};
+
+const statusColors = { pending:'badge-pending', paid:'badge-paid', shipped:'badge-shipped', delivered:'badge-delivered', cancelled:'badge-cancelled', refunded:'badge-refunded' };
+
+const loadOrders = async () => {
+  const status = document.getElementById('statusFilter').value;
+  const url = '/api/orders' + (status ? `?status=${status}` : '');
+  const data = await api('GET', url);
+  const tbody = document.getElementById('ordersBody');
+  const orders = data.orders || [];
+  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:#999;text-align:center">尚無訂單</td></tr>'; return; }
+  tbody.innerHTML = orders.map(o => `
+    <tr>
+      <td><code>${o.external_order_id}</code></td>
+      <td>${o.customer_name || o.customer_id || '匿名'}</td>
+      <td>${o.source || '-'}</td>
+      <td><span class="badge ${statusColors[o.status] || 'badge-pending'}">${o.status}</span></td>
+      <td>NT$ ${o.total_amount ?? '-'}</td>
+      <td>${o.created_at ? new Date(o.created_at).toLocaleDateString('zh-TW') : '-'}</td>
+      <td>
+        ${o.tracking_number ? `<a href="https://www.t-cat.com.tw/inquire/trace.aspx?no=${o.tracking_number}" target="_blank" style="font-size:12px;color:#5856d6">${o.tracking_number}</a>` : '-'}
+      </td>
+    </tr>
+  `).join('');
+};
+
+const loadCart = async () => {
+  const data = await api('GET', '/api/cart-events?abandoned=true');
+  const tbody = document.getElementById('cartBody');
+  const events = data.cart_events || [];
+  if (!events.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#999;text-align:center">無廢棄購物車</td></tr>'; return; }
+  tbody.innerHTML = events.map(e => `
+    <tr>
+      <td>${e.customer_name || e.customer_id || '匿名'}</td>
+      <td>NT$ ${e.total_amount ?? '-'}</td>
+      <td>${e.event_type}</td>
+      <td>${e.created_at ? new Date(e.created_at).toLocaleDateString('zh-TW') : '-'}</td>
+      <td>
+        ${!e.reminder_sent_at ? `<button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="sendReminder(${e.id})">發提醒</button>` : '<span style="color:#999;font-size:12px">已提醒</span>'}
+      </td>
+    </tr>
+  `).join('');
+};
+
+const openCreate = () => { document.getElementById('overlay').style.display = 'block'; };
+const closeModal = () => { document.getElementById('overlay').style.display = 'none'; };
+
+const createOrder = async () => {
+  const eid = document.getElementById('f_eid').value.trim();
+  if (!eid) { alert('請輸入訂單號'); return; }
+  const body = {
+    external_order_id: eid,
+    source: document.getElementById('f_source').value,
+    status: document.getElementById('f_status').value,
+    total_amount: parseFloat(document.getElementById('f_amount').value) || null,
+    tracking_number: document.getElementById('f_tracking').value.trim() || null,
+    customer_id: document.getElementById('f_cust').value ? parseInt(document.getElementById('f_cust').value) : null,
+  };
+  const r = await api('POST', '/api/orders', body);
+  if (r.ok) { show('訂單建立成功', 'ok'); closeModal(); loadOrders(); } else { show(r.error, 'err'); }
+};
+
+const sendReminder = async (id) => {
+  const r = await api('POST', `/api/cart-events/${id}/send-reminder`, {});
+  if (r.ok) { show('提醒已發送（stub）', 'ok'); loadCart(); } else { show(r.error, 'err'); }
+};
+
+loadOrders();
+</script>
+</body>
+</html>

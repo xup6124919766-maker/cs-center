@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>統一 LOG — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    /* Tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+    .tab { padding: 10px 18px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: var(--primary,#1976d2); border-bottom-color: var(--primary,#1976d2); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    /* Filters */
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+    .filters select, .filters input { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; background: var(--surface); color: var(--text); }
+    .btn { padding: 6px 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 12px; font-weight: 500; }
+    .btn-primary { background: var(--primary,#1976d2); color: #fff; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .auto-badge { font-size: 10px; background: #e8f5e9; color: #2e7d32; padding: 2px 6px; border-radius: 8px; }
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 7px 10px; border-bottom: 1px solid var(--border-light,#f0f0f0); vertical-align: top; }
+    tr:hover td { background: var(--bg); }
+    .badge { font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 500; }
+    .badge.critical { background: #ffebee; color: #c62828; }
+    .badge.warn     { background: #fff3e0; color: #e65100; }
+    .badge.info     { background: #e3f2fd; color: #1565c0; }
+    .badge.success  { background: #e8f5e9; color: #2e7d32; }
+    .badge.error    { background: #ffebee; color: #c62828; }
+    .badge.running  { background: #fff3e0; color: #e65100; }
+    .badge.never    { background: #f5f5f5; color: #9e9e9e; }
+    .mono { font-family: monospace; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .toolbar-right { display: flex; gap: 8px; align-items: center; }
+    .live-dot { width: 8px; height: 8px; background: #4caf50; border-radius: 50%; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    /* Health cards */
+    .health-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 12px; }
+    .health-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+    .health-card.ok { border-left: 3px solid #4caf50; }
+    .health-card.error { border-left: 3px solid #f44336; }
+    .health-card.never { border-left: 3px solid #9e9e9e; }
+    .health-name { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .health-time { font-size: 11px; color: var(--muted); }
+    .health-status { font-size: 11px; }
+    /* CSV Export */
+    .export-btn { padding: 5px 10px; font-size: 11px; }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="wrap">
+  <div class="page-title">統一 LOG 儀表板</div>
+  <div class="page-sub">稽核 / API 呼叫 / 慢日誌 / 排程 / Socket / 安全事件 — Admin only</div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('audit')">稽核 LOG</div>
+    <div class="tab" onclick="switchTab('api')">API 呼叫</div>
+    <div class="tab" onclick="switchTab('slow')">慢日誌</div>
+    <div class="tab" onclick="switchTab('scheduler')">排程任務</div>
+    <div class="tab" onclick="switchTab('socket')">Socket</div>
+    <div class="tab" onclick="switchTab('security')">安全事件</div>
+  </div>
+
+  <!-- 稽核 LOG -->
+  <div class="tab-panel active" id="panel-audit">
+    <div class="toolbar">
+      <div class="filters">
+        <input type="text" id="auditSearch" placeholder="搜尋 action..." style="width:180px"/>
+        <button class="btn btn-primary" onclick="loadAudit()">搜尋</button>
+      </div>
+      <div class="toolbar-right">
+        <div class="live-dot" id="auditDot" style="display:none"></div>
+        <label style="font-size:12px"><input type="checkbox" id="auditLive" onchange="toggleLive('audit')"/> 即時</label>
+        <button class="btn btn-secondary export-btn" onclick="exportCsv('audit')">匯出 CSV</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>時間</th><th>User ID</th><th>Action</th><th>Entity</th><th>IP</th><th>Details</th></tr></thead>
+      <tbody id="auditTbody"><tr><td colspan="6">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- API 呼叫 -->
+  <div class="tab-panel" id="panel-api">
+    <div class="toolbar">
+      <div class="filters">
+        <select id="apiChannel"><option value="">全部</option><option value="line">LINE</option><option value="fb">FB</option></select>
+        <select id="apiErrorOnly"><option value="">全部</option><option value="true">僅錯誤</option></select>
+        <button class="btn btn-primary" onclick="loadApi()">篩選</button>
+      </div>
+      <button class="btn btn-secondary export-btn" onclick="exportCsv('api')">匯出 CSV</button>
+    </div>
+    <table>
+      <thead><tr><th>時間</th><th>方向</th><th>通道</th><th>Endpoint</th><th>狀態</th><th>耗時</th><th>錯誤</th></tr></thead>
+      <tbody id="apiTbody"><tr><td colspan="7">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 慢日誌 -->
+  <div class="tab-panel" id="panel-slow">
+    <div class="toolbar">
+      <div class="filters">
+        <select id="slowType"><option value="">全部</option><option value="endpoint">Endpoint</option><option value="sql">SQL</option><option value="ai_call">AI Call</option></select>
+        <button class="btn btn-primary" onclick="loadSlow()">篩選</button>
+      </div>
+      <button class="btn btn-secondary export-btn" onclick="exportCsv('slow')">匯出 CSV</button>
+    </div>
+    <div id="slowTop" style="margin-bottom:16px"></div>
+    <table>
+      <thead><tr><th>時間</th><th>類型</th><th>路徑</th><th>耗時</th><th>User</th></tr></thead>
+      <tbody id="slowTbody"><tr><td colspan="5">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 排程任務 -->
+  <div class="tab-panel" id="panel-scheduler">
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">健康狀態</div>
+      <div class="health-grid" id="healthGrid">載入中...</div>
+    </div>
+    <div class="toolbar">
+      <div class="filters">
+        <select id="schedName"><option value="">全部</option>
+          <option>broadcasts</option><option>journeys</option><option>scheduled_messages</option>
+          <option>reminders</option><option>daily_reports</option><option>backup</option>
+          <option>quota_check</option><option>cleanup</option>
+        </select>
+        <select id="schedStatus"><option value="">全部</option><option>success</option><option>failed</option><option>running</option></select>
+        <button class="btn btn-primary" onclick="loadScheduler()">篩選</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>開始時間</th><th>排程名稱</th><th>狀態</th><th>耗時</th><th>處理/成功/失敗</th><th>錯誤</th></tr></thead>
+      <tbody id="schedTbody"><tr><td colspan="6">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Socket -->
+  <div class="tab-panel" id="panel-socket">
+    <div id="socketStats" style="margin-bottom:16px;font-size:13px;color:var(--muted)"></div>
+    <table>
+      <thead><tr><th>時間</th><th>事件</th><th>用戶</th><th>Client</th><th>IP</th><th>時長</th><th>原因</th></tr></thead>
+      <tbody id="socketTbody"><tr><td colspan="7">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- 安全事件 -->
+  <div class="tab-panel" id="panel-security">
+    <div class="toolbar">
+      <div class="filters">
+        <select id="secSeverity"><option value="">全部</option><option value="critical">Critical</option><option value="warn">Warn</option><option value="info">Info</option></select>
+        <select id="secResolved"><option value="">全部</option><option value="0">未處理</option><option value="1">已解決</option></select>
+        <button class="btn btn-primary" onclick="loadSecurity()">篩選</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>時間</th><th>類型</th><th>嚴重度</th><th>用戶</th><th>IP</th><th>狀態</th></tr></thead>
+      <tbody id="secTbody"><tr><td colspan="6">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script src="/admin.js"></script>
+<script>
+const fmt = ts => ts ? new Date(ts).toLocaleString('zh-TW') : '-';
+const dur  = (s, f) => (s && f) ? `${f - s}ms` : '-';
+
+let liveIntervals = {};
+let currentTab = 'audit';
+
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const tabs = ['audit','api','slow','scheduler','socket','security'];
+    t.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  loadTab(name);
+}
+
+function loadTab(name) {
+  if (name === 'audit')     loadAudit();
+  if (name === 'api')       loadApi();
+  if (name === 'slow')      loadSlow();
+  if (name === 'scheduler') { loadSchedulerHealth(); loadScheduler(); }
+  if (name === 'socket')    loadSocket();
+  if (name === 'security')  loadSecurity();
+}
+
+async function loadAudit() {
+  const q = document.getElementById('auditSearch').value;
+  const data = await fetch(`/api/audit?limit=100`).then(r => r.json()).catch(() => ({ logs: [] }));
+  const logs = (data.logs || []).filter(l => !q || JSON.stringify(l).includes(q));
+  document.getElementById('auditTbody').innerHTML = logs.length
+    ? logs.map(l => `<tr><td>${fmt(l.created_at)}</td><td>${l.user_id ?? '-'}</td><td class="mono">${l.action}</td><td>${l.entity_type || '-'} ${l.entity_id || ''}</td><td>${l.ip || '-'}</td><td style="font-size:11px">${(l.details || '').slice(0, 60)}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center">無記錄</td></tr>';
+}
+
+async function loadApi() {
+  const channel   = document.getElementById('apiChannel').value;
+  const errorOnly = document.getElementById('apiErrorOnly').value;
+  const p = new URLSearchParams({ limit: 100 });
+  if (channel)   p.set('channel', channel);
+  if (errorOnly) p.set('error_only', errorOnly);
+  const data = await fetch(`/api/logs/api-calls?${p}`).then(r => r.json()).catch(() => ({ rows: [] }));
+  const rows = data.rows || [];
+  document.getElementById('apiTbody').innerHTML = rows.length
+    ? rows.map(r => `<tr><td>${fmt(r.created_at)}</td><td>${r.direction}</td><td>${r.channel}</td><td class="mono" style="font-size:10px">${(r.endpoint||'').slice(0,40)}</td><td><span class="badge ${r.response_status >= 400 ? 'error' : 'success'}">${r.response_status || '-'}</span></td><td>${r.duration_ms != null ? r.duration_ms+'ms' : '-'}</td><td style="color:#c62828;font-size:10px">${(r.error||'').slice(0,40)}</td></tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center">無記錄</td></tr>';
+}
+
+async function loadSlow() {
+  const type = document.getElementById('slowType').value;
+  const p = new URLSearchParams({ limit: 100 });
+  if (type) p.set('type', type);
+  const data = await fetch(`/api/logs/slow?${p}`).then(r => r.json()).catch(() => ({ rows: [], top_endpoints: [] }));
+
+  // Top 10 summary
+  const topDiv = document.getElementById('slowTop');
+  const tops = data.top_endpoints || [];
+  topDiv.innerHTML = tops.length ? `
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">Top Endpoints（平均耗時）</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${tops.slice(0,5).map(t => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:11px"><div style="font-weight:600">${(t.path||'').slice(0,35)}</div><div style="color:#e65100">${Math.round(t.avg_ms)}ms 平均 / ${t.cnt}次</div></div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('slowTbody').innerHTML = (data.rows || []).length
+    ? data.rows.map(r => `<tr><td>${fmt(r.created_at)}</td><td><span class="badge info">${r.type}</span></td><td class="mono" style="font-size:10px">${(r.path||'').slice(0,50)}</td><td style="color:#e65100;font-weight:600">${r.duration_ms}ms</td><td>${r.user_id || '-'}</td></tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center">無記錄</td></tr>';
+}
+
+async function loadSchedulerHealth() {
+  const data = await fetch('/api/logs/schedulers/health').then(r => r.json()).catch(() => ({ health: [] }));
+  const grid = document.getElementById('healthGrid');
+  const items = data.health || [];
+  if (!items.length) { grid.innerHTML = '無資料'; return; }
+  grid.innerHTML = items.map(h => {
+    const cls = h.last_status === 'success' ? 'ok' : h.last_status === 'never' ? 'never' : 'error';
+    return `<div class="health-card ${cls}">
+      <div class="health-name">${h.name}</div>
+      <div class="health-status"><span class="badge ${h.last_status}">${h.last_status}</span></div>
+      <div class="health-time">最後：${h.last_run_at ? new Date(h.last_run_at).toLocaleString('zh-TW') : '從未'}</div>
+      ${h.last_duration != null ? `<div class="health-time">耗時：${h.last_duration}ms</div>` : ''}
+      ${h.error ? `<div style="color:#c62828;font-size:10px;margin-top:4px">${h.error.slice(0,60)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadScheduler() {
+  const name   = document.getElementById('schedName').value;
+  const status = document.getElementById('schedStatus').value;
+  const p = new URLSearchParams({ limit: 100 });
+  if (name)   p.set('name', name);
+  if (status) p.set('status', status);
+  const data = await fetch(`/api/logs/schedulers?${p}`).then(r => r.json()).catch(() => ({ rows: [] }));
+  document.getElementById('schedTbody').innerHTML = (data.rows || []).length
+    ? data.rows.map(r => `<tr>
+        <td>${fmt(r.started_at)}</td>
+        <td class="mono">${r.scheduler_name}</td>
+        <td><span class="badge ${r.status}">${r.status}</span></td>
+        <td>${dur(r.started_at, r.finished_at)}</td>
+        <td>${r.processed_count}/${r.success_count}/${r.error_count}</td>
+        <td style="color:#c62828;font-size:10px">${(r.error||'').slice(0,50)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center">無記錄</td></tr>';
+}
+
+async function loadSocket() {
+  const [statsData, rows] = await Promise.all([
+    fetch('/api/logs/sockets/stats?period=day').then(r => r.json()).catch(() => ({})),
+    fetch('/api/logs/sockets/online').then(r => r.json()).catch(() => ({ users: [] })),
+  ]);
+  document.getElementById('socketStats').textContent =
+    `24h 連線 ${statsData.connect_count ?? 0} 次 / Auth 失敗 ${statsData.auth_failed_count ?? 0} / 平均時長 ${Math.round((statsData.avg_duration_ms || 0)/1000)}s / 當前在線 ${rows.count ?? 0} 人`;
+
+  // Recent socket events
+  const evData = await fetch('/api/logs/schedulers?name=_socket_&limit=50').then(r => r.json()).catch(() => ({ rows: [] }));
+  // 直接查 DB via endpoint（沒有直接 socket events endpoint，改用 online 列表）
+  document.getElementById('socketTbody').innerHTML = (rows.users || []).length
+    ? rows.users.map(u => `<tr><td>${fmt(u.last_seen_at)}</td><td><span class="badge success">online</span></td><td>${u.username}</td><td>${u.client_id || 'admin'}</td><td>-</td><td>-</td><td>${u.online_status}</td></tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center">目前無在線用戶</td></tr>';
+}
+
+async function loadSecurity() {
+  const severity = document.getElementById('secSeverity').value;
+  const resolved = document.getElementById('secResolved').value;
+  const p = new URLSearchParams({ limit: 100 });
+  if (severity)        p.set('severity', severity);
+  if (resolved !== '') p.set('resolved', resolved);
+  const data = await fetch(`/api/logs/security-events?${p}`).then(r => r.json()).catch(() => ({ events: [] }));
+  document.getElementById('secTbody').innerHTML = (data.events || []).length
+    ? data.events.map(e => `<tr><td>${fmt(e.created_at)}</td><td>${e.event_type}</td><td><span class="badge ${e.severity}">${e.severity}</span></td><td>${e.username || '-'}</td><td class="mono" style="font-size:10px">${e.ip || '-'}</td><td>${e.resolved ? '已解決' : '待處理'}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center">無事件</td></tr>';
+}
+
+function toggleLive(tab) {
+  const el = document.getElementById(`${tab}Live`);
+  const dot = document.getElementById(`${tab}Dot`);
+  if (el.checked) {
+    dot.style.display = '';
+    liveIntervals[tab] = setInterval(() => loadTab(tab), 5000);
+  } else {
+    dot.style.display = 'none';
+    clearInterval(liveIntervals[tab]);
+  }
+}
+
+function exportCsv(tab) {
+  const table = document.querySelector(`#panel-${tab} table`);
+  if (!table) return;
+  const rows = [...table.querySelectorAll('tr')].map(tr =>
+    [...tr.querySelectorAll('th,td')].map(td => `"${td.textContent.replace(/"/g,'""')}"`).join(',')
+  );
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `logs-${tab}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+loadAudit();
+</script>
+</body>
+</html>

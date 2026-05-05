@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>梵森客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#06C755" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="梵森客服" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C6.48 2 2 6.48 2 12C2 13.96 2.54 15.78 3.47 17.33L2.03 21.97L6.77 20.56C8.28 21.47 10.08 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="#06C755"/>
+    </svg>
+    <span>客服中心</span>
+  </div>
+  <div id="topbar-right">
+    <!-- 搜尋框 -->
+    <div id="search-wrap">
+      <input type="text" id="search-input" placeholder="搜尋訊息… (⌘K)" autocomplete="off" />
+      <div id="search-results" class="hidden"></div>
+    </div>
+    <span id="user-info"></span>
+    <a href="/dashboard.html">儀表板</a>
+    <a href="/knowledge.html">知識庫</a>
+    <a href="/admin/games.html">活動</a>
+    <a href="/admin/broadcasts.html">廣播</a>
+    <a href="/admin/ecommerce.html">訂單</a>
+    <a href="/admin/analytics.html">報表</a>
+    <a href="/admin/auto-reply.html">自動回覆</a>
+    <a href="/admin/clv.html">顧客分群</a>
+    <a href="/admin/rules.html" id="rules-link" style="display:none;">規則</a>
+    <a href="/admin/integrations.html" id="integrations-link" style="display:none;">整合</a>
+    <a href="/admin.html" id="admin-link" style="display:none;">設定</a>
+    <a href="/admin/pwa-status.html" id="pwa-link" style="display:none;" title="PWA 狀態">PWA</a>
+    <a href="/profile.html" id="profile-link">個人</a>
+    <!-- 連線狀態指示器 -->
+    <div id="ws-status" class="disconnected" title="WebSocket 連線狀態">
+      <span class="ws-dot"></span>
+      <span id="ws-status-label">連線中…</span>
+    </div>
+    <div class="mention-bell" id="mention-bell" title="提及通知" onclick="toggleMentionPanel()" style="display:none;">
+      🔔<span class="mention-badge" id="mention-count" style="display:none;">0</span>
+    </div>
+    <!-- 我的狀態 -->
+    <div id="my-status-wrap" style="position:relative;display:none;">
+      <div class="status-select-wrap" onclick="document.getElementById('status-dropdown').classList.toggle('open')" style="cursor:pointer;">
+        <span class="online-dot online" id="my-status-dot"></span>
+        <span id="my-status-label">在線</span>
+      </div>
+      <div id="status-dropdown">
+        <div class="status-opt" data-status="online" onclick="setMyStatus('online')"><span class="online-dot online"></span>在線</div>
+        <div class="status-opt" data-status="away"   onclick="setMyStatus('away')"><span class="online-dot away"></span>離開</div>
+        <div class="status-opt" data-status="busy"   onclick="setMyStatus('busy')"><span class="online-dot busy"></span>忙碌</div>
+        <div class="status-opt" data-status="offline" onclick="setMyStatus('offline')"><span class="online-dot offline"></span>離線</div>
+      </div>
+    </div>
+    <button id="logout-btn">登出</button>
+  </div>
+</div>
+
+<!-- 離線橫幅（預設隱藏） -->
+<div id="offline-banner" class="hidden">
+  <span>⚠️ 連線中斷，無法接收即時訊息</span>
+  <button onclick="reconnectSocket()">手動重連</button>
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Main app layout -->
+<div id="app">
+
+  <!-- Left: conversation list -->
+  <div id="sidebar" class="panel" data-panel="list">
+    <div id="sidebar-header">
+      <h1 id="sidebar-client-name">全部對話</h1>
+    </div>
+    <div id="sidebar-filters">
+      <button class="filter-btn active" data-status="">全部</button>
+      <button class="filter-btn" data-status="open">進行中</button>
+      <button class="filter-btn" data-status="pending">待處理</button>
+      <button class="filter-btn" data-status="closed">已結束</button>
+    </div>
+    <div id="conv-list">
+      <!-- Skeleton 載入佔位 -->
+      <div id="conv-skeleton">
+        <div class="conv-skeleton"><div class="skeleton-circle"></div><div class="skeleton-lines"><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div></div>
+        <div class="conv-skeleton"><div class="skeleton-circle"></div><div class="skeleton-lines"><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div></div>
+        <div class="conv-skeleton"><div class="skeleton-circle"></div><div class="skeleton-lines"><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div></div>
+        <div class="conv-skeleton"><div class="skeleton-circle"></div><div class="skeleton-lines"><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div></div>
+        <div class="conv-skeleton"><div class="skeleton-circle"></div><div class="skeleton-lines"><div class="skeleton-line medium"></div><div class="skeleton-line short"></div></div></div>
+      </div>
+      <!-- 空狀態 -->
+      <div id="conv-empty" style="display:none;">
+        <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="72" height="72" rx="36" fill="#F5F7FA"/>
+          <path d="M36 18C26.06 18 18 25.16 18 34C18 37.83 19.45 41.33 21.89 44.04L20.03 52.97L29.23 50.18C31.36 51.03 33.63 51.5 36 51.5C45.94 51.5 54 44.34 54 35.5C54 26.66 45.94 18 36 18Z" fill="#E8EBED"/>
+          <circle cx="28" cy="35" r="2.5" fill="#8C949C"/>
+          <circle cx="36" cy="35" r="2.5" fill="#8C949C"/>
+          <circle cx="44" cy="35" r="2.5" fill="#8C949C"/>
+        </svg>
+        <p>目前沒有對話<br>等待顧客從 LINE 或 FB 傳訊後會自動出現</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: chat area -->
+  <div id="main" class="panel hidden" data-panel="chat">
+    <div id="chat-header">
+      <div id="chat-header-info">
+        <div id="chat-avatar" class="conv-avatar" style="width:40px;height:40px;font-size:18px;cursor:pointer;" title="查看顧客時間軸">👤</div>
+        <div style="min-width:0;">
+          <div id="chat-header-name">—</div>
+          <div id="chat-header-sub" class="text-sm text-muted"></div>
+        </div>
+        <!-- 情緒 / 意圖 badge -->
+        <div id="chat-header-badges" style="display:flex;gap:4px;flex-wrap:wrap;margin-left:4px;"></div>
+      </div>
+      <div id="chat-header-actions">
+        <select id="conv-status-select">
+          <option value="open">進行中</option>
+          <option value="pending">待處理</option>
+          <option value="closed">已結束</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 摘要區（折疊式）-->
+    <div id="summary-bar" class="hidden">
+      <div id="summary-toggle">💡 AI 摘要 <span id="summary-chevron">▼</span></div>
+      <div id="summary-content" class="hidden"></div>
+    </div>
+
+    <div id="messages-container">
+      <div id="chat-placeholder">
+        <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="96" height="96" rx="48" fill="#F5F7FA"/>
+          <path d="M48 20C33.09 20 21 31.19 21 45C21 52.76 24.67 59.7 30.41 64.27L28.04 76L40.24 72.47C42.73 73.46 45.31 74 48 74C62.91 74 75 62.81 75 49C75 35.19 62.91 20 48 20Z" fill="#E8EBED"/>
+          <circle cx="38" cy="49" r="3.5" fill="#8C949C"/>
+          <circle cx="48" cy="49" r="3.5" fill="#8C949C"/>
+          <circle cx="58" cy="49" r="3.5" fill="#8C949C"/>
+        </svg>
+        <h2>選擇一個對話</h2>
+        <p>從左側選擇對話，或等待顧客透過 LINE / FB 傳訊</p>
+      </div>
+    </div>
+
+    <!-- 建議回覆浮動區 -->
+    <div class="suggestion-bar" id="suggestion-bar" style="display:none;">
+      <div class="sug-header">
+        💡 建議回覆
+        <button class="sug-refresh" title="重新生成" onclick="loadSuggestions()">🔄</button>
+        <button class="sug-toggle" title="收合" onclick="
+          var l=document.getElementById('sug-list');
+          var t=this;
+          if(l.style.display==='none'){l.style.display='';t.textContent='▼';}
+          else{l.style.display='none';t.textContent='▶';}
+        ">▼</button>
+      </div>
+      <div class="sug-list" id="sug-list"></div>
+    </div>
+
+    <div id="input-area">
+      <!-- 備忘 toggle -->
+      <div id="input-mode-bar">
+        <button class="input-mode-btn active" id="mode-reply" data-mode="reply">💬 回覆</button>
+        <button class="input-mode-btn" id="mode-note" data-mode="note">📝 內部備忘</button>
+      </div>
+      <div id="input-row">
+        <textarea
+          id="msg-input"
+          placeholder="輸入訊息… (Enter 送出，Shift+Enter 換行)"
+          rows="1"
+        ></textarea>
+        <button id="send-btn" disabled title="送出">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="btn btn-secondary" id="draft-btn" disabled title="AI 草擬" style="font-size:12px;padding:8px 12px;">AI 草擬</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: customer info + templates + drafts -->
+  <div id="right-panel" class="panel hidden" data-panel="info">
+    <div id="right-panel-tabs">
+      <div class="rpanel-tab active" data-rtab="customer">顧客</div>
+      <div class="rpanel-tab" data-rtab="templates">模板</div>
+      <div class="rpanel-tab" data-rtab="drafts">草擬</div>
+    </div>
+    <div id="right-panel-body">
+
+      <!-- 顧客資訊 -->
+      <div id="tab-customer">
+        <!-- 顯示模式 -->
+        <div id="customer-view">
+          <div class="rpanel-section">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm5 8H3a5 5 0 0 1 10 0z"/></svg>
+              顧客資訊
+              <button class="btn btn-secondary" id="edit-customer-btn" style="margin-left:auto;padding:3px 10px;font-size:11px;" disabled>編輯</button>
+            </h3>
+            <div class="info-row"><span class="info-label">姓名</span><span class="info-value" id="c-name">—</span></div>
+            <div class="info-row"><span class="info-label">電話</span><span class="info-value" id="c-phone">—</span></div>
+            <div class="info-row"><span class="info-label">Email</span><span class="info-value" id="c-email">—</span></div>
+            <!-- 黑名單狀態 -->
+            <div id="c-blocked-bar" class="hidden">
+              顧客已被封鎖：<span id="c-blocked-reason">—</span>
+            </div>
+          </div>
+          <div class="rpanel-section">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1H2V2zm0 2h12v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4zm4 5a1 1 0 1 0 2 0 1 1 0 0 0-2 0z"/></svg>
+              對話標籤
+            </h3>
+            <div id="conv-tags" class="tag-list">
+              <span class="text-muted text-sm">尚無標籤</span>
+            </div>
+            <div style="margin-top:10px;">
+              <input type="text" id="tag-input" placeholder="輸入標籤後按 Enter" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:var(--font-sans);outline:none;transition:border-color 0.15s;background:var(--bg);" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'" />
+            </div>
+          </div>
+          <div class="rpanel-section">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 9a3.5 3.5 0 1 0 0 7h7a3.5 3.5 0 1 0 0-7h-7zM0 12.5a4.5 4.5 0 0 1 4.5-4.5h7a4.5 4.5 0 0 1 0 9h-7A4.5 4.5 0 0 1 0 12.5z M5 12.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zM8 4a4 4 0 1 1 8 0 4 4 0 0 1-8 0z"/></svg>
+              顧客標籤
+            </h3>
+            <div id="c-tags" class="tag-list">
+              <span class="text-muted text-sm">尚無標籤</span>
+            </div>
+          </div>
+          <div class="rpanel-section">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h11A1.5 1.5 0 0 1 15 2.5v8.086a1.5 1.5 0 0 1-.44 1.061l-3.06 3.06A1.5 1.5 0 0 1 10.44 15H2.5A1.5 1.5 0 0 1 1 13.5v-11z"/></svg>
+              內部備註
+            </h3>
+            <div id="c-notes" class="text-sm" style="color:var(--text-secondary);white-space:pre-wrap;line-height:1.6;"></div>
+          </div>
+          <!-- 自訂屬性 -->
+          <div class="rpanel-section" id="custom-fields-section" style="display:none;">
+            <h3>自訂屬性</h3>
+            <div id="custom-fields-view"></div>
+          </div>
+          <!-- 操作按鈕 -->
+          <div class="rpanel-section">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8.5 1.5A1.5 1.5 0 0 1 10 0h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h6c-.314.418-.5.937-.5 1.5v7.793L4.854 6.646a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l3.5-3.5a.5.5 0 0 0-.708-.708L8.5 9.293V1.5z"/></svg>
+              操作
+            </h3>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button class="btn btn-secondary" id="transfer-btn" style="font-size:12px;" disabled>轉接</button>
+              <button class="btn btn-secondary" id="summarize-btn" style="font-size:12px;" disabled>AI 摘要</button>
+              <button class="btn btn-secondary" id="timeline-btn" style="font-size:12px;" disabled title="查看顧客完整互動時間軸">時間軸</button>
+              <button class="btn btn-secondary" id="block-btn" style="font-size:12px;color:var(--err);border-color:rgba(229,57,53,0.3);" disabled>封鎖顧客</button>
+            </div>
+          </div>
+        </div>
+
+          <!-- 會員資訊區塊 -->
+          <div class="rpanel-section" id="membership-info" style="display:none;">
+            <h3 style="display:flex;align-items:center;gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+              會員資訊
+            </h3>
+            <div id="membership-body" style="font-size:12px;line-height:1.8;">
+              <div class="info-row"><span class="info-label">等級</span><span class="info-value" id="m-stage">—</span></div>
+              <div class="info-row"><span class="info-label">加入</span><span class="info-value" id="m-joined">—</span></div>
+              <div class="info-row"><span class="info-label">累積消費</span><span class="info-value" id="m-total-amount">—</span></div>
+              <div class="info-row"><span class="info-label">訂單數</span><span class="info-value" id="m-order-count">—</span></div>
+              <div class="info-row"><span class="info-label">平均單價</span><span class="info-value" id="m-avg-amount">—</span></div>
+              <div class="info-row"><span class="info-label">最近消費</span><span class="info-value" id="m-last-order">—</span></div>
+              <div class="info-row"><span class="info-label">累積點數</span><span class="info-value" id="m-points">—</span></div>
+              <div class="info-row"><span class="info-label">連續簽到</span><span class="info-value" id="m-streak">—</span></div>
+              <div class="info-row"><span class="info-label">中獎次數</span><span class="info-value" id="m-wins">—</span></div>
+              <div class="info-row"><span class="info-label">CSAT 平均</span><span class="info-value" id="m-csat">—</span></div>
+            </div>
+          </div>
+
+          <!-- 訂單歷史區塊 -->
+          <div class="rpanel-section" id="orders-section" style="display:none;">
+            <h3>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-3.5a.5.5 0 0 1 .5.5v3.793l2.354 2.353a.5.5 0 0 1-.708.708l-2.5-2.5A.5.5 0 0 1 7.5 9V5a.5.5 0 0 1 .5-.5z"/></svg>
+              訂單歷史 <span id="orders-count" style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;"></span>
+            </h3>
+            <div id="orders-list" style="font-size:12px;"></div>
+          </div>
+
+        <!-- 編輯模式 -->
+        <div id="customer-edit" style="display:none;">
+          <div class="rpanel-section">
+            <h3>編輯顧客資料</h3>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label style="font-size:11px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;">姓名</label>
+                <input id="edit-c-name" type="text" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;font-family:var(--font-sans);outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'" />
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;">電話</label>
+                <input id="edit-c-phone" type="text" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;font-family:var(--font-sans);outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'" />
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;">Email</label>
+                <input id="edit-c-email" type="text" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;font-family:var(--font-sans);outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'" />
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;">標籤（逗號分隔）</label>
+                <input id="edit-c-tags" type="text" placeholder="VIP,敏感肌" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;font-family:var(--font-sans);outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'" />
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;">內部備註</label>
+                <textarea id="edit-c-notes" rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;font-family:var(--font-sans);resize:vertical;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" id="save-customer-btn" style="flex:1;">儲存</button>
+                <button class="btn btn-secondary" id="cancel-customer-btn">取消</button>
+              </div>
+              <div id="customer-edit-status" style="font-size:12px;color:var(--muted);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 快捷模板 -->
+      <div id="tab-templates" style="display:none;">
+        <div class="rpanel-section">
+          <h3>快捷模板</h3>
+          <div id="template-list">
+            <div class="text-muted text-sm" style="padding:8px 0">載入中…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 草擬 -->
+      <div id="tab-drafts" style="display:none;">
+        <div class="rpanel-section">
+          <h3>AI 草擬建議</h3>
+          <div id="draft-list">
+            <div class="draft-placeholder">點擊「AI 草擬」按鈕產生建議回覆</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 轉接 Modal -->
+<div id="transfer-modal">
+  <div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:18px;color:var(--text-primary);letter-spacing:-0.2px;">轉接對話</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:5px;">指派給</label>
+      <select id="transfer-user-select" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;font-family:var(--font-sans);background:var(--bg);outline:none;">
+        <option value="">選擇客服人員…</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:5px;">原因（選填）</label>
+      <input type="text" id="transfer-reason" placeholder="例如：需要高級主管處理" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;font-family:var(--font-sans);outline:none;" />
+    </div>
+    <!-- P8：AI 摘要顯示區 -->
+    <div id="transfer-summary-area" style="display:none;margin-bottom:14px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-secondary" id="transfer-cancel">取消</button>
+      <button class="btn btn-primary" id="transfer-confirm">確認轉接</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile tab bar -->
+<div id="mobile-tabs">
+  <div class="mtab active" data-panel="list">對話</div>
+  <div class="mtab" data-panel="chat">訊息</div>
+  <div class="mtab" data-panel="info">顧客</div>
+</div>
+
+<!-- 同步狀態指示器 -->
+<div class="sync-indicator" id="sync-indicator">同步中...</div>
+
+<!-- socket.io client -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

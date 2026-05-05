@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>互動活動 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  h2 { margin: 0 0 16px; font-size: 20px; }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-green { background: #34c759; color: #fff; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .btn-gray { background: #e5e5ea; color: #333; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+  .badge-draft { background: #e5e5ea; color: #666; }
+  .badge-active { background: #d1f7e0; color: #1b7c3e; }
+  .badge-ended { background: #ffe0e0; color: #b00; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  .prize-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 620px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 40px auto; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  #msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 14px; }
+  #msg.ok { background: #d1f7e0; color: #1b7c3e; display: block; }
+  #msg.err { background: #ffe0e0; color: #b00; display: block; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html" class="active">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ecommerce.html">訂單</a>
+  <a href="/admin/rich-menus.html">圖文選單</a>
+  <a href="/admin/journeys.html">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div id="msg"></div>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <h2 style="margin:0">互動活動管理</h2>
+    <button class="btn btn-primary" onclick="openCreate()">+ 新增活動</button>
+  </div>
+
+  <div class="card" id="activityList">
+    <table>
+      <thead><tr><th>名稱</th><th>類型</th><th>狀態</th><th>參與次數</th><th>操作</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 建立/編輯 Modal -->
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modalTitle">新增活動</h3>
+    <div id="modalMsg"></div>
+    <div class="form-row">
+      <div><label>名稱</label><input id="f_name" placeholder="春季抽獎活動"></div>
+      <div><label>類型</label>
+        <select id="f_type">
+          <option value="wheel">大轉盤</option>
+          <option value="scratch">刮刮樂</option>
+          <option value="gacha">扭蛋</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>開始時間（Unix ms，空=立即）</label><input id="f_start" placeholder="留空"></div>
+      <div><label>結束時間（Unix ms，空=無期限）</label><input id="f_end" placeholder="留空"></div>
+    </div>
+    <div class="form-row">
+      <div><label>每人限抽次數</label><input id="f_limit" type="number" value="1" min="1"></div>
+      <div><label>總名額（空=無限）</label><input id="f_quota" placeholder="留空"></div>
+    </div>
+    <div class="form-row">
+      <div><label>連抽抽數（每次參與幾抽）</label><input id="f_draws_per" type="number" value="1" min="1" max="50"></div>
+      <div><label>保底第 N 抽必中（空=不保底）</label><input id="f_guaranteed" type="number" placeholder="如：10"></div>
+    </div>
+    <div class="form-row">
+      <div><label>VIP 中獎率倍率</label><input id="f_vip_mult" type="number" value="1.0" min="1" max="5" step="0.1" placeholder="1.0=不加成"></div>
+      <div><label>限量中獎名額（空=不限）</label><input id="f_max_winners" type="number" placeholder="留空"></div>
+    </div>
+    <div class="form-row">
+      <div><label>限時視窗（秒，空=不限時）</label><input id="f_time_window" type="number" placeholder="如：3600 = 1 小時"></div>
+      <div><label>音效</label>
+        <select id="f_sound">
+          <option value="silent">無音效</option>
+          <option value="cheerful">歡樂</option>
+          <option value="mystic">神秘</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>分享回饋開關</label>
+        <select id="f_share_bonus">
+          <option value="0">關閉</option>
+          <option value="1">開啟（中獎後可分享得點）</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <button class="btn btn-gray" style="width:100%;padding:9px 12px;font-size:13px;" onclick="viewLeaderboard()">查看排行榜</button>
+      </div>
+    </div>
+    <div class="form-row single">
+      <div><label>中獎自動貼標（標籤名稱，空=不貼）</label><input id="f_tag" placeholder="中獎者"></div>
+    </div>
+    <hr>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <strong>獎項設定</strong>
+      <button class="btn btn-gray" style="padding:4px 10px;font-size:12px" onclick="addPrizeRow()">+ 加一行</button>
+    </div>
+    <div style="font-size:12px;color:#666;margin-bottom:6px">名稱 / 機率(0-1) / 名額(空=無限) / 優惠碼</div>
+    <div id="prizesContainer"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveActivity()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let activities = [];
+let editId = null;
+
+const show = (msg, type) => {
+  const el = document.getElementById('msg');
+  el.textContent = msg;
+  el.className = type;
+};
+
+const api = async (method, path, body) => {
+  const r = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r.json();
+};
+
+const typeLabel = { wheel: '大轉盤', scratch: '刮刮樂', gacha: '扭蛋' };
+const typeEmoji = { wheel: '🎰', scratch: '🎟️', gacha: '🥚' };
+
+const renderList = () => {
+  const tbody = document.getElementById('listBody');
+  if (!activities.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#999;text-align:center">尚無活動</td></tr>';
+    return;
+  }
+  tbody.innerHTML = activities.map(a => `
+    <tr>
+      <td>${typeEmoji[a.type] || ''} ${a.name}</td>
+      <td>${typeLabel[a.type] || a.type}</td>
+      <td><span class="badge badge-${a.status}">${a.status}</span></td>
+      <td>${a.total_participations ?? 0}</td>
+      <td class="actions">
+        ${a.status === 'draft' ? `<button class="btn btn-green" style="padding:4px 8px;font-size:12px" onclick="startActivity(${a.id})">啟動</button>` : ''}
+        ${a.status === 'active' ? `<button class="btn btn-red" style="padding:4px 8px;font-size:12px" onclick="endActivity(${a.id})">結束</button>` : ''}
+        ${a.status === 'active' ? `<button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="copyLink(${a.id}, '${a.type}')">複製連結</button>` : ''}
+        <button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="viewStats(${a.id})">統計</button>
+        <button class="btn btn-red" style="padding:4px 8px;font-size:12px" onclick="deleteActivity(${a.id})">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+};
+
+const load = async () => {
+  const data = await api('GET', '/api/games');
+  activities = data.activities || [];
+  renderList();
+};
+
+const openCreate = () => {
+  editId = null;
+  document.getElementById('modalTitle').textContent = '新增活動';
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_type').value = 'wheel';
+  document.getElementById('f_start').value = '';
+  document.getElementById('f_end').value = '';
+  document.getElementById('f_limit').value = '1';
+  document.getElementById('f_quota').value = '';
+  document.getElementById('f_tag').value = '';
+  document.getElementById('f_draws_per').value = '1';
+  document.getElementById('f_guaranteed').value = '';
+  document.getElementById('f_vip_mult').value = '1.0';
+  document.getElementById('f_max_winners').value = '';
+  document.getElementById('f_time_window').value = '';
+  document.getElementById('f_sound').value = 'silent';
+  document.getElementById('f_share_bonus').value = '0';
+  document.getElementById('prizesContainer').innerHTML = '';
+  addPrizeRow();
+  addPrizeRow();
+  document.getElementById('overlay').style.display = 'block';
+};
+
+const closeModal = () => {
+  document.getElementById('overlay').style.display = 'none';
+};
+
+const addPrizeRow = () => {
+  const div = document.createElement('div');
+  div.className = 'prize-row';
+  div.innerHTML = `
+    <input placeholder="獎項名稱（如：一等獎）">
+    <input type="number" step="0.01" min="0" max="1" placeholder="0.05">
+    <input type="number" min="1" placeholder="名額">
+    <input placeholder="優惠碼">
+    <button class="btn btn-red" style="padding:4px 8px;font-size:12px" onclick="this.parentElement.remove()">✕</button>
+  `;
+  document.getElementById('prizesContainer').appendChild(div);
+};
+
+const saveActivity = async () => {
+  const name = document.getElementById('f_name').value.trim();
+  const type = document.getElementById('f_type').value;
+  if (!name) { alert('請輸入名稱'); return; }
+
+  const prizeRows = document.querySelectorAll('.prize-row');
+  const prizes = [];
+  for (const row of prizeRows) {
+    const inputs = row.querySelectorAll('input');
+    const pName = inputs[0].value.trim();
+    const prob = parseFloat(inputs[1].value);
+    if (!pName || isNaN(prob)) continue;
+    prizes.push({
+      name: pName,
+      probability: prob,
+      quota: inputs[2].value ? parseInt(inputs[2].value) : null,
+      coupon_code: inputs[3].value.trim() || null,
+    });
+  }
+  if (!prizes.length) { alert('至少要有一個獎項'); return; }
+
+  const body = {
+    name, type, prizes,
+    participation_limit_per_user: parseInt(document.getElementById('f_limit').value) || 1,
+    total_quota: document.getElementById('f_quota').value ? parseInt(document.getElementById('f_quota').value) : null,
+    auto_tag_winner: document.getElementById('f_tag').value.trim() || null,
+    start_at: document.getElementById('f_start').value ? parseInt(document.getElementById('f_start').value) : null,
+    end_at: document.getElementById('f_end').value ? parseInt(document.getElementById('f_end').value) : null,
+    // 進階欄位
+    draws_per_participation: parseInt(document.getElementById('f_draws_per').value) || 1,
+    guaranteed_after: document.getElementById('f_guaranteed').value ? parseInt(document.getElementById('f_guaranteed').value) : null,
+    vip_multiplier: parseFloat(document.getElementById('f_vip_mult').value) || 1.0,
+    max_winners: document.getElementById('f_max_winners').value ? parseInt(document.getElementById('f_max_winners').value) : null,
+    time_window_seconds: document.getElementById('f_time_window').value ? parseInt(document.getElementById('f_time_window').value) : null,
+    sound_effect: document.getElementById('f_sound').value,
+    share_bonus_enabled: parseInt(document.getElementById('f_share_bonus').value) || 0,
+  };
+
+  const result = await api('POST', '/api/games', body);
+  if (result.ok) {
+    closeModal();
+    show('活動建立成功！', 'ok');
+    load();
+  } else {
+    show(result.error || '建立失敗', 'err');
+  }
+};
+
+const startActivity = async (id) => {
+  const r = await api('POST', `/api/games/${id}/start`, {});
+  if (r.ok) { show('活動已啟動', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+
+const endActivity = async (id) => {
+  if (!confirm('確定結束活動？')) return;
+  const r = await api('POST', `/api/games/${id}/end`, {});
+  if (r.ok) { show('活動已結束', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+
+const deleteActivity = async (id) => {
+  if (!confirm('確定刪除？此操作不可還原')) return;
+  const r = await api('DELETE', `/api/games/${id}`);
+  if (r.ok) { show('已刪除', 'ok'); load(); } else { show(r.error, 'err'); }
+};
+
+const copyLink = (id, type) => {
+  const url = `${location.origin}/play/${type}.html?activity_id=${id}`;
+  navigator.clipboard.writeText(url).then(() => show(`連結已複製：${url}`, 'ok'));
+};
+
+const viewStats = async (id) => {
+  const [r, fbStats] = await Promise.all([
+    api('GET', `/api/games/${id}/stats`),
+    api('GET', `/api/games/${id}/feedback-stats`),
+  ]);
+
+  const avgRating = fbStats.avg_rating !== null && fbStats.avg_rating !== undefined ? fbStats.avg_rating : null;
+  const dist = fbStats.distribution || {};
+  const totalFb = fbStats.total || 0;
+
+  const starsHtml = [5,4,3,2,1].map(star => {
+    const cnt = dist[star] || 0;
+    const pct = totalFb > 0 ? Math.round(cnt / totalFb * 100) : 0;
+    return `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px">
+        <span style="width:32px;color:#f59e0b;font-size:14px">${'★'.repeat(star)}</span>
+        <div style="flex:1;height:10px;background:#e5e5ea;border-radius:5px;overflow:hidden">
+          <div style="height:100%;background:#f59e0b;width:${pct}%;border-radius:5px;transition:width 0.3s"></div>
+        </div>
+        <span style="width:40px;text-align:right;color:#666">${cnt} 人</span>
+      </div>
+    `;
+  }).join('');
+
+  const commentsHtml = (fbStats.recent_comments || []).length
+    ? (fbStats.recent_comments || []).map(c =>
+        `<div style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px">
+          <span style="font-weight:600">${c.customer_name || '匿名'}</span>
+          <span style="margin-left:6px;color:#f59e0b">${'★'.repeat(c.rating)}${'☆'.repeat(5-c.rating)}</span>
+          <div style="color:#666;margin-top:2px">${c.comment}</div>
+        </div>`
+      ).join('')
+    : '<div style="color:#999;font-size:13px">尚無評語</div>';
+
+  const statsOverlay = document.createElement('div');
+  statsOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;overflow-y:auto';
+  statsOverlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:24px;max-width:560px;width:90%;margin:40px auto;position:relative">
+      <button onclick="this.closest('[style*=fixed]').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#999">✕</button>
+      <h3 style="margin:0 0 16px;font-size:18px">活動統計 — ${r.prize_distribution ? (activities.find(a=>a.id===id)?.name||'#'+id) : '#'+id}</h3>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;text-align:center">
+        <div style="background:#f8f8fb;border-radius:8px;padding:12px">
+          <div style="font-size:24px;font-weight:700">${r.total_participations || 0}</div>
+          <div style="font-size:12px;color:#888">總參與</div>
+        </div>
+        <div style="background:#f8f8fb;border-radius:8px;padding:12px">
+          <div style="font-size:24px;font-weight:700">${r.total_winners || 0}</div>
+          <div style="font-size:12px;color:#888">中獎人數</div>
+        </div>
+        <div style="background:#f8f8fb;border-radius:8px;padding:12px">
+          <div style="font-size:24px;font-weight:700">${avgRating !== null ? avgRating.toFixed(1) : '--'}<span style="font-size:14px;color:#f59e0b"> / 5</span></div>
+          <div style="font-size:12px;color:#888">平均評分</div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding-top:16px;margin-bottom:16px">
+        <strong style="font-size:14px">獎項分布</strong>
+        <div style="margin-top:8px">
+          ${(r.prize_distribution||[]).map(p=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${p.name}</span><span style="color:#666">${p.count} 人</span></div>`).join('') || '<div style="color:#999;font-size:13px">尚無資料</div>'}
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding-top:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <strong style="font-size:14px">評價分布</strong>
+          <span style="font-size:12px;color:#888">共 ${totalFb} 則評價</span>
+        </div>
+        ${totalFb === 0 ? '<div style="color:#999;font-size:13px;text-align:center;padding:12px 0">尚無評價</div>' : starsHtml}
+      </div>
+
+      <div style="border-top:1px solid #f0f0f0;padding-top:12px">
+        <strong style="font-size:13px">評語（最近 10 則）</strong>
+        <div style="margin-top:8px">${commentsHtml}</div>
+      </div>
+    </div>
+  `;
+  statsOverlay.addEventListener('click', e => { if (e.target === statsOverlay) statsOverlay.remove(); });
+  document.body.appendChild(statsOverlay);
+};
+
+const viewLeaderboard = () => {
+  window.open('/play/leaderboard.html', '_blank');
+};
+
+load();
+</script>
+</body>
+</html>

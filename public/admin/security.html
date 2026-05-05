@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>安全監控 — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 14px; margin-bottom: 20px; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .kpi-label { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin: 4px 0 2px; }
+    .kpi.critical { border-color: #f44336; }
+    .kpi.critical .kpi-value { color: #c62828; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; }
+    .card-header { padding: 12px 20px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--bg); display: flex; justify-content: space-between; align-items: center; }
+    .card-body { padding: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 16px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 16px; border-bottom: 1px solid var(--border-light,#f0f0f0); }
+    tr:hover td { background: var(--bg); }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .badge.critical { background: #ffebee; color: #c62828; }
+    .badge.warn     { background: #fff3e0; color: #e65100; }
+    .badge.info     { background: #e3f2fd; color: #1565c0; }
+    .btn { padding: 5px 12px; border-radius: var(--radius); border: 1px solid var(--border); cursor: pointer; font-size: 12px; background: var(--surface); color: var(--text); }
+    .btn:hover { background: var(--bg); }
+    .btn-resolve { border-color: #4caf50; color: #2e7d32; }
+    .filters { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .filters select { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; background: var(--surface); color: var(--text); }
+    .detail-pre { font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="wrap">
+  <div class="page-title">安全監控</div>
+  <div class="page-sub">異常登入偵測、多 IP 警告、暴力破解防護（Admin only）</div>
+
+  <div class="kpi-grid">
+    <div class="kpi critical" id="kpiCritical"><div class="kpi-label">Critical 事件</div><div class="kpi-value" id="criticalCount">-</div><div style="font-size:11px;color:var(--muted)">待處理</div></div>
+    <div class="kpi"><div class="kpi-label">Warn 事件</div><div class="kpi-value" id="warnCount">-</div></div>
+    <div class="kpi"><div class="kpi-label">登入失敗（24h）</div><div class="kpi-value" id="failCount">-</div></div>
+    <div class="kpi"><div class="kpi-label">多 IP 警告</div><div class="kpi-value" id="multiIpCount">-</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      安全事件列表
+      <button class="btn" onclick="loadEvents()">重整</button>
+    </div>
+    <div class="filters">
+      <select id="severityFilter" onchange="loadEvents()">
+        <option value="">全部等級</option>
+        <option value="critical">Critical</option>
+        <option value="warn">Warn</option>
+        <option value="info">Info</option>
+      </select>
+      <select id="resolvedFilter" onchange="loadEvents()">
+        <option value="">全部狀態</option>
+        <option value="0">未處理</option>
+        <option value="1">已解決</option>
+      </select>
+      <select id="typeFilter" onchange="loadEvents()">
+        <option value="">全部類型</option>
+        <option value="multi_ip_login">多 IP 登入</option>
+        <option value="high_fail_rate">高失敗率</option>
+        <option value="locked_out">帳號鎖定</option>
+        <option value="suspicious_pattern">可疑模式</option>
+        <option value="token_expired">Token 過期</option>
+      </select>
+    </div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>時間</th><th>類型</th><th>嚴重度</th><th>用戶</th><th>IP</th><th>詳情</th><th>狀態</th><th></th></tr></thead>
+        <tbody id="eventsTable"><tr><td colspan="8">載入中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script src="/admin.js"></script>
+<script>
+const fmt = ts => ts ? new Date(ts).toLocaleString('zh-TW') : '-';
+const getCSRF = () => document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='))?.split('=')[1] || '';
+
+const typeLabels = {
+  multi_ip_login:    '多 IP 登入',
+  high_fail_rate:    '高失敗率',
+  locked_out:        '帳號鎖定',
+  suspicious_pattern: '可疑模式',
+  login_fail:        '登入失敗',
+  login_success:     '登入成功',
+  token_expired:     'Token 過期',
+};
+
+async function loadEvents() {
+  const severity = document.getElementById('severityFilter').value;
+  const resolved = document.getElementById('resolvedFilter').value;
+  const eventType = document.getElementById('typeFilter').value;
+
+  const p = new URLSearchParams({ limit: 100 });
+  if (severity)  p.set('severity', severity);
+  if (resolved !== '') p.set('resolved', resolved);
+  if (eventType) p.set('event_type', eventType);
+
+  const data = await fetch(`/api/logs/security-events?${p}`).then(r => r.json()).catch(() => ({ events: [] }));
+  const events = data.events || [];
+
+  // KPI
+  const criticals = events.filter(e => e.severity === 'critical' && !e.resolved);
+  const warns     = events.filter(e => e.severity === 'warn'     && !e.resolved);
+  const fails     = events.filter(e => e.event_type === 'login_fail' && e.created_at > Date.now() - 86400000);
+  const multiIp   = events.filter(e => e.event_type === 'multi_ip_login');
+  document.getElementById('criticalCount').textContent = criticals.length;
+  document.getElementById('warnCount').textContent     = warns.length;
+  document.getElementById('failCount').textContent     = fails.length;
+  document.getElementById('multiIpCount').textContent  = multiIp.length;
+
+  const tbody = document.getElementById('eventsTable');
+  if (!events.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">無事件</td></tr>'; return; }
+
+  tbody.innerHTML = events.map(e => {
+    const details = (() => { try { return JSON.parse(e.details || '{}'); } catch { return {}; } })();
+    const detailStr = JSON.stringify(details).slice(0, 80);
+    return `<tr>
+      <td>${fmt(e.created_at)}</td>
+      <td>${typeLabels[e.event_type] || e.event_type}</td>
+      <td><span class="badge ${e.severity}">${e.severity}</span></td>
+      <td>${e.username || '-'}</td>
+      <td style="font-family:monospace;font-size:11px">${e.ip || '-'}</td>
+      <td><div class="detail-pre" title="${detailStr}">${detailStr}</div></td>
+      <td>${e.resolved ? '<span style="color:#4caf50">已解決</span>' : '<span style="color:#e65100">待處理</span>'}</td>
+      <td>${!e.resolved ? `<button class="btn btn-resolve" onclick="resolve(${e.id})">解決</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function resolve(id) {
+  if (!confirm('標記此事件為已解決？')) return;
+  const r = await fetch(`/api/logs/security-events/${id}/resolve`, {
+    method: 'POST',
+    headers: { 'x-csrf-token': getCSRF() }
+  }).then(r => r.json()).catch(() => ({}));
+  if (r.ok) loadEvents();
+  else alert(r.error || '操作失敗');
+}
+
+loadEvents();
+setInterval(loadEvents, 30000);
+</script>
+</body>
+</html>

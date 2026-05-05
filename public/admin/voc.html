@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoC 顧客洞察 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; flex-wrap: wrap; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .section-title { font-size: 15px; font-weight: 700; color: #333; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; }
+  .section-title .badge-count { background: #5856d6; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+
+  /* KPI 區 */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 768px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: #fff; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .kpi-val { font-size: 28px; font-weight: 700; color: #5856d6; }
+  .kpi-val.red   { color: #e53935; }
+  .kpi-val.green { color: #43a047; }
+  .kpi-val.orange{ color: #f57c00; }
+  .kpi-lbl { font-size: 13px; color: #888; margin-top: 4px; }
+  .kpi-sub { font-size: 12px; color: #aaa; margin-top: 2px; }
+  .trend-arrow { font-size: 14px; margin-left: 4px; }
+
+  /* 分類比例 bar */
+  .cat-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 10px 0 4px; gap: 2px; }
+  .cat-seg { height: 100%; border-radius: 3px; transition: width 0.5s; }
+  .cat-complaint { background: #e53935; }
+  .cat-praise    { background: #43a047; }
+  .cat-request   { background: #1e88e5; }
+  .cat-question  { background: #90a4ae; }
+  .cat-product   { background: #ab47bc; }
+  .cat-legend    { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #666; }
+  .cat-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+
+  /* 話題表格 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; background: #fafafa; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9f9ff; }
+
+  /* 情緒 mini bar */
+  .sent-bar { display: flex; gap: 2px; height: 14px; width: 100px; border-radius: 3px; overflow: hidden; }
+  .sent-pos { background: #43a047; }
+  .sent-neu { background: #bdbdbd; }
+  .sent-neg { background: #e53935; }
+
+  /* 趨勢箭頭 */
+  .trend-rising  { color: #e53935; font-weight: 700; }
+  .trend-falling { color: #43a047; font-weight: 700; }
+  .trend-stable  { color: #90a4ae; }
+
+  /* urgency 標籤 */
+  .urgency-high   { background: #ffebee; color: #c62828; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+  .urgency-normal { background: #fff3e0; color: #e65100; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .urgency-low    { background: #f1f8e9; color: #558b2f; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+
+  /* category 標籤 */
+  .cat-tag { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .cat-tag.complaint      { background: #ffebee; color: #c62828; }
+  .cat-tag.praise         { background: #e8f5e9; color: #2e7d32; }
+  .cat-tag.request        { background: #e3f2fd; color: #1565c0; }
+  .cat-tag.question       { background: #eceff1; color: #546e7a; }
+  .cat-tag.product_feedback { background: #f3e5f5; color: #6a1b9a; }
+
+  /* 產品卡片 */
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .product-card { border: 1px solid #f0f0f0; border-radius: 8px; padding: 14px; }
+  .product-card .pname { font-weight: 700; font-size: 14px; color: #333; margin-bottom: 8px; }
+  .product-card .pcount { font-size: 22px; font-weight: 700; color: #5856d6; }
+  .product-card .psub { font-size: 12px; color: #aaa; }
+  .product-ratio { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+  .product-ratio .pos { background: #43a047; }
+  .product-ratio .neg { background: #e53935; }
+  .product-ratio .neu { background: #e0e0e0; flex: 1; }
+
+  /* 抱怨列表 */
+  .complaint-row { padding: 12px; border: 1px solid #ffebee; border-radius: 8px; margin-bottom: 8px; background: #fff; }
+  .complaint-row.handled { opacity: 0.55; border-color: #f0f0f0; }
+  .complaint-row .cr-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .complaint-row .cr-excerpt { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 6px; background: #fafafa; padding: 8px; border-radius: 4px; }
+  .complaint-row .cr-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+
+  /* 按鈕 */
+  .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-primary:hover { background: #4340c4; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-outline { background: #fff; border: 1px solid #ddd; color: #333; }
+  .btn-outline:hover { border-color: #5856d6; color: #5856d6; }
+  .btn-success { background: #43a047; color: #fff; }
+
+  /* period selector */
+  .period-btns { display: flex; gap: 4px; }
+  .period-btns button { padding: 4px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+  .period-btns button.active { background: #5856d6; color: #fff; border-color: #5856d6; }
+
+  /* Modal */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal-box { background:#fff; border-radius:16px; width:720px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:28px; position:relative; }
+  .modal-close { position:absolute; top:16px; right:20px; border:none; background:none; font-size:20px; cursor:pointer; color:#888; }
+  .modal-h { font-size:18px; font-weight:700; margin:0 0 16px; }
+
+  /* 載入狀態 */
+  .loading { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+  .empty { text-align: center; padding: 30px; color: #bbb; font-size: 13px; }
+
+  /* request signal */
+  .signal-list { display: flex; flex-direction: column; gap: 8px; }
+  .signal-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0f4ff; border-radius: 8px; }
+  .signal-count { font-size: 20px; font-weight: 700; color: #5856d6; min-width: 40px; }
+  .signal-topic { font-size: 13px; color: #333; }
+
+  /* 匯出按鈕 */
+  .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* print */
+  @media print {
+    .topnav, .period-btns, .btn, .header-actions button { display: none !important; }
+    .modal-overlay { display: none !important; }
+    body { background: #fff; }
+    .card { box-shadow: none; border: 1px solid #eee; }
+    .container { max-width: 100%; margin: 0; padding: 0 8px; }
+  }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ecommerce.html">訂單</a>
+  <a href="/admin/rich-menus.html">圖文選單</a>
+  <a href="/admin/journeys.html">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin/voc.html" class="active">VoC 洞察</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+
+  <!-- 標題 + 控制列 -->
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="margin:0;font-size:18px">VoC 顧客洞察儀表板</h2>
+      <p style="margin:4px 0 0;font-size:13px;color:#888">AI 分析顧客聲音，讓資料驅動品牌決策</p>
+    </div>
+    <div class="header-actions">
+      <div class="period-btns">
+        <button onclick="setPeriod('7d')">7天</button>
+        <button onclick="setPeriod('30d')" class="active" id="btn30d">30天</button>
+        <button onclick="setPeriod('90d')">90天</button>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="triggerAnalyze()">立即分析</button>
+      <button class="btn btn-outline btn-sm" onclick="window.print()">匯出 PDF</button>
+    </div>
+  </div>
+
+  <!-- 區 1：本月關鍵數字 -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-val" id="kpi_total">-</div>
+      <div class="kpi-lbl">總分析訊息</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val red" id="kpi_complaint">-</div>
+      <div class="kpi-lbl">抱怨訊息</div>
+      <div class="kpi-sub" id="kpi_complaint_pct"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val green" id="kpi_praise">-</div>
+      <div class="kpi-lbl">讚美訊息</div>
+      <div class="kpi-sub" id="kpi_praise_pct"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val orange" id="kpi_urgency">-</div>
+      <div class="kpi-lbl">高緊急度</div>
+      <div class="kpi-sub" id="kpi_neg_pct"></div>
+    </div>
+  </div>
+
+  <!-- 分類比例條 -->
+  <div class="card" style="padding:16px 20px">
+    <div style="font-size:13px;color:#666;margin-bottom:8px">訊息分類分布</div>
+    <div class="cat-bar" id="catBar">
+      <div class="cat-seg cat-complaint" style="width:0%" title="抱怨"></div>
+      <div class="cat-seg cat-praise" style="width:0%" title="讚美"></div>
+      <div class="cat-seg cat-request" style="width:0%" title="需求"></div>
+      <div class="cat-seg cat-question" style="width:0%" title="詢問"></div>
+      <div class="cat-seg cat-product" style="width:0%" title="產品回饋"></div>
+    </div>
+    <div class="cat-legend" id="catLegend">
+      <span><span class="cat-dot" style="background:#e53935"></span>抱怨</span>
+      <span><span class="cat-dot" style="background:#43a047"></span>讚美</span>
+      <span><span class="cat-dot" style="background:#1e88e5"></span>需求</span>
+      <span><span class="cat-dot" style="background:#90a4ae"></span>詢問</span>
+      <span><span class="cat-dot" style="background:#ab47bc"></span>產品回饋</span>
+    </div>
+  </div>
+
+  <!-- 區 2：TOP 10 話題 -->
+  <div class="card">
+    <div class="section-title">
+      客戶最關心的話題 TOP 10
+      <span class="badge-count" id="topicCount">0</span>
+    </div>
+    <div id="topicsSection">
+      <div class="loading">載入中...</div>
+    </div>
+  </div>
+
+  <!-- 區 3：產品提及排行 -->
+  <div class="card">
+    <div class="section-title">產品提及排行</div>
+    <div class="product-grid" id="productGrid">
+      <div class="loading">載入中...</div>
+    </div>
+  </div>
+
+  <!-- 區 4：抱怨列表 -->
+  <div class="card">
+    <div class="section-title" style="justify-content:space-between">
+      <span>抱怨 / 客訴 清單</span>
+      <button class="btn btn-outline btn-sm" onclick="filterComplaints()">顯示全部</button>
+    </div>
+    <div id="complaintList">
+      <div class="loading">載入中...</div>
+    </div>
+  </div>
+
+  <!-- 區 5：產品改進 Signal -->
+  <div class="card">
+    <div class="section-title">產品改進 Signal — 顧客需求聲音</div>
+    <p style="font-size:13px;color:#888;margin:0 0 12px">來自 category=request 的顧客建議，可作為產品決策參考</p>
+    <div class="signal-list" id="signalList">
+      <div class="loading">載入中...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 話題詳細 Modal -->
+<div class="modal-overlay" id="topicModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div class="modal-h" id="modalTitle">話題詳情</div>
+    <div id="modalBody"><div class="loading">載入中...</div></div>
+  </div>
+</div>
+
+<script>
+// ─── 全域狀態 ───
+let currentPeriod = '30d';
+let dashboardData = null;
+
+// ─── 工具函式 ───
+const fmt = n => n?.toLocaleString('zh-TW') ?? '-';
+const pct = (n, total) => total > 0 ? `${Math.round(n / total * 100)}%` : '0%';
+
+const trendHtml = (t) => {
+  if (t === 'rising')  return '<span class="trend-rising">↗ 上升</span>';
+  if (t === 'falling') return '<span class="trend-falling">↘ 下降</span>';
+  return '<span class="trend-stable">→ 持平</span>';
+};
+
+const catLabel = (cat) => {
+  const m = { complaint:'抱怨', praise:'讚美', request:'需求', question:'詢問', product_feedback:'產品回饋' };
+  return m[cat] || cat;
+};
+
+const fmtDate = (ms) => {
+  if (!ms) return '';
+  return new Date(ms).toLocaleDateString('zh-TW', { month:'numeric', day:'numeric' });
+};
+
+const fmtDateTime = (ms) => {
+  if (!ms) return '';
+  return new Date(ms).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+};
+
+// ─── period 切換 ───
+const setPeriod = (p) => {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btns button').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === ({
+      '7d':'7天','30d':'30天','90d':'90天'
+    }[p]));
+  });
+  loadDashboard();
+};
+
+// ─── 載入儀表板 ───
+const loadDashboard = async () => {
+  try {
+    const r = await fetch(`/api/voc/dashboard?period=${currentPeriod}`);
+    if (!r.ok) {
+      if (r.status === 401) { location.href = '/login.html'; return; }
+      throw new Error(`HTTP ${r.status}`);
+    }
+    dashboardData = await r.json();
+    renderDashboard(dashboardData);
+  } catch (e) {
+    console.error('loadDashboard error', e);
+  }
+};
+
+// ─── 渲染儀表板 ───
+const renderDashboard = (d) => {
+  const s = d.summary;
+
+  // KPI
+  document.getElementById('kpi_total').textContent     = fmt(s.total_analyzed);
+  document.getElementById('kpi_complaint').textContent = fmt(s.complaint_count);
+  document.getElementById('kpi_complaint_pct').textContent = `佔 ${s.complaint_ratio}%`;
+  document.getElementById('kpi_praise').textContent    = fmt(s.praise_count);
+  document.getElementById('kpi_praise_pct').textContent    = `佔 ${s.praise_ratio}%`;
+  document.getElementById('kpi_urgency').textContent   = fmt(s.high_urgency_count);
+  document.getElementById('kpi_neg_pct').textContent   = `負面情緒 ${s.negative_ratio}%`;
+
+  // 分類 bar
+  const total = s.total_analyzed || 1;
+  const segs = document.querySelectorAll('.cat-bar .cat-seg');
+  segs[0].style.width = pct(s.complaint_count, total);
+  segs[1].style.width = pct(s.praise_count, total);
+  segs[2].style.width = pct(s.request_count, total);
+  segs[3].style.width = pct(s.question_count, total);
+  segs[4].style.width = pct(s.product_feedback_count, total);
+  segs[0].title = `抱怨：${s.complaint_count} (${pct(s.complaint_count, total)})`;
+  segs[1].title = `讚美：${s.praise_count} (${pct(s.praise_count, total)})`;
+  segs[2].title = `需求：${s.request_count} (${pct(s.request_count, total)})`;
+  segs[3].title = `詢問：${s.question_count} (${pct(s.question_count, total)})`;
+  segs[4].title = `產品回饋：${s.product_feedback_count} (${pct(s.product_feedback_count, total)})`;
+
+  // 話題排行
+  renderTopics(d.top_topics);
+
+  // 產品提及
+  renderProducts(d.product_mentions);
+
+  // 抱怨列表
+  renderComplaints(d.complaints);
+
+  // 改進 signal
+  renderSignals(d.product_requests);
+};
+
+// ─── 區 2：話題表格 ───
+const renderTopics = (topics) => {
+  const el = document.getElementById('topicsSection');
+  document.getElementById('topicCount').textContent = topics?.length || 0;
+
+  if (!topics?.length) {
+    el.innerHTML = '<div class="empty">尚無話題資料。請先點「立即分析」觸發 AI 分析。</div>';
+    return;
+  }
+
+  const rows = topics.map((t, i) => {
+    const total = (t.pos_count || 0) + (t.neu_count || 0) + (t.neg_count || 0) || 1;
+    const posW  = Math.round((t.pos_count || 0) / total * 100);
+    const neuW  = Math.round((t.neu_count || 0) / total * 100);
+    const negW  = 100 - posW - neuW;
+    const excerpts = (() => {
+      try { return JSON.parse(t.example_excerpts || '[]'); } catch { return []; }
+    })();
+    const hoverText = excerpts[0] ? excerpts[0].replace(/"/g, '&quot;') : '';
+
+    return `<tr>
+      <td style="color:#aaa;font-size:13px">${i + 1}</td>
+      <td>
+        <strong title="${hoverText}" style="cursor:default">${t.topic}</strong>
+        ${hoverText ? `<div style="font-size:11px;color:#bbb;margin-top:2px;max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${excerpts[0]}</div>` : ''}
+      </td>
+      <td><span class="cat-tag ${t.category}">${catLabel(t.category)}</span></td>
+      <td><strong>${fmt(t.count)}</strong></td>
+      <td>${trendHtml(t.trend)}</td>
+      <td>
+        <div class="sent-bar">
+          <div class="sent-pos" style="width:${posW}%" title="正面：${t.pos_count || 0}"></div>
+          <div class="sent-neu" style="width:${neuW}%" title="中性：${t.neu_count || 0}"></div>
+          <div class="sent-neg" style="width:${negW}%" title="負面：${t.neg_count || 0}"></div>
+        </div>
+      </td>
+      <td><button class="btn btn-outline btn-sm" onclick="openTopicModal(${t.id}, '${(t.topic || '').replace(/'/g, "\\'")}')">看詳細</button></td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>話題</th>
+          <th>類型</th>
+          <th>次數</th>
+          <th>趨勢</th>
+          <th>情緒分布</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+};
+
+// ─── 區 3：產品提及卡片 ───
+const renderProducts = (products) => {
+  const el = document.getElementById('productGrid');
+  if (!products?.length) {
+    el.innerHTML = '<div class="empty">無產品提及資料</div>';
+    return;
+  }
+
+  el.innerHTML = products.map(p => {
+    const total = p.total || 1;
+    const posW = Math.round((p.pos || 0) / total * 100);
+    const negW = Math.round((p.neg || 0) / total * 100);
+    const neuW = 100 - posW - negW;
+    return `<div class="product-card">
+      <div class="pname">${p.product_mention}</div>
+      <div class="pcount">${fmt(p.total)}<span style="font-size:13px;font-weight:400;color:#aaa;margin-left:4px">次提及</span></div>
+      <div class="product-ratio">
+        <div class="pos" style="width:${posW}%" title="正面 ${p.pos || 0}"></div>
+        <div class="neg" style="width:${negW}%" title="負面 ${p.neg || 0}"></div>
+        <div class="neu" style="width:${neuW}%" title="中性"></div>
+      </div>
+      <div class="psub" style="margin-top:4px">
+        ${p.details?.top_question ? `最常問：${p.details.top_question}` : ''}
+        ${p.details?.top_praise ? `<br>最常讚：${p.details.top_praise}` : ''}
+      </div>
+    </div>`;
+  }).join('');
+};
+
+// ─── 區 4：抱怨列表 ───
+let showAllComplaints = false;
+const renderComplaints = (complaints) => {
+  const el = document.getElementById('complaintList');
+  if (!complaints?.length) {
+    el.innerHTML = '<div class="empty">無抱怨記錄，表現優秀！</div>';
+    return;
+  }
+
+  const list = showAllComplaints ? complaints : complaints.slice(0, 10);
+  el.innerHTML = list.map(c => `
+    <div class="complaint-row ${c.handled ? 'handled' : ''}" id="cr-${c.id}">
+      <div class="cr-top">
+        <strong style="font-size:13px">${c.customer_name || '未知顧客'}</strong>
+        <span class="urgency-${c.urgency}">${{ high:'高緊急', normal:'一般', low:'低' }[c.urgency] || c.urgency}</span>
+        ${c.topic ? `<span class="cat-tag complaint">${c.topic}</span>` : ''}
+        <span style="font-size:12px;color:#bbb;margin-left:auto">${fmtDateTime(c.created_at)}</span>
+      </div>
+      <div class="cr-excerpt">${c.raw_excerpt || '（無原文）'}</div>
+      <div class="cr-footer">
+        <a href="/index.html?conv=${c.conv_id}" target="_blank" style="font-size:12px;color:#5856d6">查看對話</a>
+        <button class="btn btn-sm ${c.handled ? 'btn-outline' : 'btn-success'}"
+          onclick="markHandled(${c.id}, ${c.handled ? 0 : 1})">
+          ${c.handled ? '標記未處理' : '標記已處理'}
+        </button>
+      </div>
+    </div>`).join('');
+};
+
+const filterComplaints = () => {
+  showAllComplaints = !showAllComplaints;
+  const btn = document.querySelector('[onclick="filterComplaints()"]');
+  btn.textContent = showAllComplaints ? '折疊列表' : '顯示全部';
+  if (dashboardData) renderComplaints(dashboardData.complaints);
+};
+
+// ─── 標記已處理 ───
+const markHandled = async (id, handled) => {
+  try {
+    const r = await fetch(`/api/voc/insights/${id}/handled`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handled }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    // 局部更新 DOM
+    const row = document.getElementById(`cr-${id}`);
+    if (row) {
+      row.classList.toggle('handled', handled === 1);
+      const btn = row.querySelector('button');
+      if (btn) btn.textContent = handled ? '標記未處理' : '標記已處理';
+      if (btn) btn.className = `btn btn-sm ${handled ? 'btn-outline' : 'btn-success'}`;
+      btn.setAttribute('onclick', `markHandled(${id}, ${handled ? 0 : 1})`);
+    }
+  } catch (e) {
+    alert('操作失敗：' + e.message);
+  }
+};
+
+// ─── 區 5：改進 Signal ───
+const renderSignals = (requests) => {
+  const el = document.getElementById('signalList');
+  if (!requests?.length) {
+    el.innerHTML = '<div class="empty">尚無明確需求訊號</div>';
+    return;
+  }
+  el.innerHTML = requests.map(r => `
+    <div class="signal-item">
+      <div class="signal-count">${r.cnt}</div>
+      <div class="signal-topic">「${r.topic}」— 顧客提出 ${r.cnt} 次</div>
+    </div>`).join('');
+};
+
+// ─── Modal：話題詳情 ───
+const openTopicModal = async (topicId, topicName) => {
+  document.getElementById('modalTitle').textContent = `話題詳情：${topicName}`;
+  document.getElementById('modalBody').innerHTML = '<div class="loading">載入中...</div>';
+  document.getElementById('topicModal').classList.add('open');
+
+  try {
+    const r = await fetch(`/api/voc/topics/${topicId}/excerpts?limit=30`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    renderModalBody(data);
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML = `<div class="empty">載入失敗：${e.message}</div>`;
+  }
+};
+
+const renderModalBody = (data) => {
+  const t = data.topic;
+  const insights = data.insights || [];
+
+  const stats = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;font-size:13px;color:#666">
+      <span>出現 <strong>${t.count}</strong> 次</span>
+      <span>趨勢 ${trendHtml(t.trend)}</span>
+      <span>首見 ${fmtDate(t.first_seen_at)}</span>
+      <span>最近 ${fmtDate(t.last_seen_at)}</span>
+    </div>`;
+
+  const rows = insights.length ? insights.map(i => `
+    <div style="padding:12px 0;border-bottom:1px solid #f0f0f0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <strong style="font-size:13px">${i.customer_name || '未知'}</strong>
+        <span class="cat-tag ${i.category}">${catLabel(i.category)}</span>
+        <span class="urgency-${i.urgency}">${{ high:'高緊急', normal:'一般', low:'低' }[i.urgency]}</span>
+        <span style="font-size:12px;color:#bbb;margin-left:auto">${fmtDateTime(i.created_at)}</span>
+      </div>
+      <div style="font-size:13px;color:#555;background:#fafafa;padding:8px;border-radius:4px;line-height:1.5">${i.raw_excerpt || ''}</div>
+      <div style="margin-top:6px">
+        <a href="/index.html?conv=${i.conv_id}" target="_blank" style="font-size:12px;color:#5856d6">查看對話</a>
+      </div>
+    </div>`).join('') : '<div class="empty">此時段無資料</div>';
+
+  document.getElementById('modalBody').innerHTML = stats + rows;
+};
+
+const closeModal = () => {
+  document.getElementById('topicModal').classList.remove('open');
+};
+
+// 點 overlay 關閉
+document.getElementById('topicModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ─── 手動觸發分析 ───
+const triggerAnalyze = async () => {
+  const btn = document.querySelector('[onclick="triggerAnalyze()"]');
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+  try {
+    const r = await fetch('/api/voc/analyze-now', { method: 'POST' });
+    const d = await r.json();
+    alert(d.message || '已觸發分析，請稍後重新整理頁面');
+  } catch (e) {
+    alert('觸發失敗：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '立即分析';
+  }
+};
+
+// ─── 初始化 ───
+loadDashboard();
+</script>
+</body>
+</html>

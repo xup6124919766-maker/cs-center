@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 自動回覆 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { margin: 0 0 18px; font-size: 16px; color: #1a1a2e; }
+  .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .form-label { width: 140px; font-size: 13px; color: #555; flex-shrink: 0; }
+  .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+  .toggle { position: relative; width: 48px; height: 26px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 26px; transition: 0.2s; }
+  .slider::before { content: ''; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+  input:checked + .slider { background: #5856d6; }
+  input:checked + .slider::before { transform: translateX(22px); }
+  .toggle-label { font-size: 13px; font-weight: 600; color: #333; }
+  input[type=text], textarea, select { width: 100%; border: 1.5px solid #ddd; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: system-ui; outline: none; box-sizing: border-box; }
+  input[type=range] { width: 200px; }
+  .btn { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-primary:hover { background: #4342c0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: #f8f8ff; border-radius: 10px; padding: 16px; text-align: center; }
+  .kpi-val { font-size: 28px; font-weight: 700; color: #5856d6; }
+  .kpi-lbl { font-size: 12px; color: #888; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .schedule-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .schedule-table th, .schedule-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; }
+  .schedule-table input[type=time] { width: 120px; }
+  .add-slot-btn { margin-top: 8px; padding: 6px 14px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .del-btn { color: #e53e3e; border: none; background: none; cursor: pointer; font-size: 14px; }
+  .conf-val { font-weight: 700; color: #5856d6; min-width: 36px; display: inline-block; }
+  .loading { color: #aaa; font-size: 13px; }
+  .tag { display: inline-block; padding: 2px 8px; background: #e8e8ff; color: #5856d6; border-radius: 99px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="topnav">
+  <span class="brand">客服中心</span>
+  <a href="/">對話</a>
+  <a href="/dashboard.html">儀表板</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin/auto-reply.html" class="active">AI 自動回覆</a>
+  <a href="/admin/clv.html">顧客分群</a>
+  <a href="/admin.html">設定</a>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading" style="padding:20px;">載入中...</div>
+
+  <!-- 設定區 -->
+  <div class="card" id="config-card" style="display:none;">
+    <h2>AI 自動回覆設定</h2>
+
+    <div class="form-row">
+      <span class="form-label">啟用自動回覆</span>
+      <div class="toggle-wrap">
+        <label class="toggle"><input type="checkbox" id="cfg-enabled"><span class="slider"></span></label>
+        <span class="toggle-label" id="enabled-label">已關閉</span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <span class="form-label">回覆模式</span>
+      <select id="cfg-mode" style="width:220px;">
+        <option value="off_hours">離線時段自動回</option>
+        <option value="always_on">永遠開啟</option>
+      </select>
+    </div>
+
+    <div id="off-hours-section">
+      <div class="form-row" style="align-items:flex-start;">
+        <span class="form-label" style="padding-top:8px;">離線時段</span>
+        <div style="flex:1;">
+          <table class="schedule-table">
+            <thead><tr><th>星期</th><th>開始</th><th>結束</th><th></th></tr></thead>
+            <tbody id="schedule-tbody"></tbody>
+          </table>
+          <button class="add-slot-btn" onclick="addScheduleRow()">+ 新增時段</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <span class="form-label">信心閾值</span>
+      <input type="range" id="cfg-threshold" min="0.3" max="0.95" step="0.05" value="0.7" oninput="$('#threshold-val').textContent = (+this.value*100).toFixed(0)+'%'">
+      <span class="conf-val" id="threshold-val">70%</span>
+      <span style="font-size:11px;color:#aaa;margin-left:8px;">（越高越精準但命中率越低）</span>
+    </div>
+
+    <div class="form-row" style="align-items:flex-start;">
+      <span class="form-label" style="padding-top:8px;">結尾 Disclaimer</span>
+      <textarea id="cfg-disclaimer" rows="2" placeholder="以上由 AI 自動回覆，需真人客服請輸入「真人客服」" style="flex:1;resize:vertical;"></textarea>
+    </div>
+
+    <div style="margin-top:8px;">
+      <button class="btn btn-primary" onclick="saveConfig()">儲存設定</button>
+      <span id="save-msg" style="margin-left:12px;font-size:13px;color:#16a34a;display:none;">已儲存</span>
+    </div>
+  </div>
+
+  <!-- 今日統計 -->
+  <div class="card" id="stats-card" style="display:none;">
+    <h2>今日統計</h2>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-val" id="stat-count">—</div><div class="kpi-lbl">AI 自動回覆則數</div></div>
+      <div class="kpi"><div class="kpi-val" id="stat-hitrate">—</div><div class="kpi-lbl">FAQ 命中率</div></div>
+      <div class="kpi"><div class="kpi-val" id="stat-conf">—</div><div class="kpi-lbl">平均信心分數</div></div>
+    </div>
+    <h3 style="font-size:13px;color:#555;margin-bottom:12px;">最近 10 筆紀錄</h3>
+    <table>
+      <thead><tr><th>時間</th><th>顧客</th><th>AI 回覆（摘要）</th><th>信心</th><th>觸發原因</th></tr></thead>
+      <tbody id="logs-tbody"><tr><td colspan="5" style="color:#aaa;text-align:center;">載入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const getCsrfToken = () => {
+  const match = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='));
+  return match ? match.slice(8) : '';
+};
+const api = async (method, path, body) => {
+  const r = await fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json', 'x-csrf-token': getCsrfToken() },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || `HTTP ${r.status}`); }
+  return r.json();
+};
+const fmtTime = (ms) => new Date(ms).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+let clientId = null;
+let scheduleRows = [];
+
+const DAY_NAMES = ['週日','週一','週二','週三','週四','週五','週六'];
+
+const addScheduleRow = (row = { day: 1, start: '18:00', end: '09:00' }) => {
+  scheduleRows.push({ ...row, _id: Date.now() });
+  renderScheduleTable();
+};
+
+const renderScheduleTable = () => {
+  const tbody = $('#schedule-tbody');
+  tbody.innerHTML = scheduleRows.map((r, i) => `
+    <tr>
+      <td>
+        <select onchange="scheduleRows[${i}].day = +this.value">
+          ${DAY_NAMES.map((d, idx) => `<option value="${idx}" ${r.day === idx ? 'selected' : ''}>${d}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="time" value="${r.start}" onchange="scheduleRows[${i}].start = this.value" /></td>
+      <td><input type="time" value="${r.end}"   onchange="scheduleRows[${i}].end   = this.value" /></td>
+      <td><button class="del-btn" onclick="scheduleRows.splice(${i},1);renderScheduleTable()">×</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" style="color:#aaa;">尚無時段，點下方新增</td></tr>';
+};
+
+const loadConfig = async () => {
+  const cfg = await api('GET', `/api/auto-reply/config?client_id=${clientId}`);
+  $('#cfg-enabled').checked = cfg.enabled;
+  $('#enabled-label').textContent = cfg.enabled ? '已啟用' : '已關閉';
+  $('#cfg-enabled').onchange = function() { $('#enabled-label').textContent = this.checked ? '已啟用' : '已關閉'; };
+
+  const alwaysOn = cfg.schedule?.always_on;
+  $('#cfg-mode').value = alwaysOn ? 'always_on' : 'off_hours';
+  $('#off-hours-section').style.display = alwaysOn ? 'none' : '';
+  $('#cfg-mode').onchange = function() {
+    $('#off-hours-section').style.display = this.value === 'always_on' ? 'none' : '';
+  };
+
+  scheduleRows = (cfg.schedule?.off_hours || []).map(r => ({ ...r, _id: Date.now() + Math.random() }));
+  if (!scheduleRows.length) scheduleRows = [{ day: 1, start: '18:00', end: '09:00', _id: 1 }];
+  renderScheduleTable();
+
+  $('#cfg-threshold').value = cfg.confidence_threshold ?? 0.7;
+  $('#threshold-val').textContent = Math.round((cfg.confidence_threshold ?? 0.7) * 100) + '%';
+  $('#cfg-disclaimer').value = cfg.disclaimer || '以上由 AI 自動回覆，需真人客服請輸入「真人客服」';
+};
+
+const saveConfig = async () => {
+  const alwaysOn = $('#cfg-mode').value === 'always_on';
+  const schedule = alwaysOn
+    ? { always_on: true, off_hours: [] }
+    : { always_on: false, off_hours: scheduleRows.map(r => ({ day: r.day, start: r.start, end: r.end })) };
+
+  await api('PUT', `/api/auto-reply/config?client_id=${clientId}`, {
+    enabled: $('#cfg-enabled').checked,
+    schedule,
+    confidence_threshold: parseFloat($('#cfg-threshold').value),
+    disclaimer: $('#cfg-disclaimer').value.trim(),
+  });
+  const msg = $('#save-msg');
+  msg.style.display = '';
+  setTimeout(() => { msg.style.display = 'none'; }, 2000);
+};
+
+const loadStats = async () => {
+  const s = await api('GET', `/api/auto-reply/stats?client_id=${clientId}`);
+  $('#stat-count').textContent = s.today_count;
+  $('#stat-hitrate').textContent = s.hit_rate + '%';
+  $('#stat-conf').textContent = s.avg_confidence;
+  $('#logs-tbody').innerHTML = (s.recent || []).length === 0
+    ? '<tr><td colspan="5" style="color:#aaa;text-align:center;">今日尚無自動回覆紀錄</td></tr>'
+    : (s.recent || []).map(r => `
+        <tr>
+          <td>${fmtTime(r.created_at)}</td>
+          <td>${esc(r.customer_name || '#' + r.conversation_id)}</td>
+          <td>${esc((r.ai_response || '').slice(0, 60))}${r.ai_response?.length > 60 ? '…' : ''}</td>
+          <td>${r.confidence ? Math.round(r.confidence * 100) + '%' : '—'}</td>
+          <td>${esc(r.trigger_reason || '')}</td>
+        </tr>
+      `).join('');
+};
+
+(async () => {
+  try {
+    const me = await api('GET', '/api/me');
+    if (me.role !== 'admin') {
+      const clients = await api('GET', '/api/clients');
+      clientId = me.client_id || (clients.clients?.[0]?.id ?? null);
+    } else {
+      const clients = await api('GET', '/api/clients');
+      clientId = clients.clients?.[0]?.id ?? null;
+    }
+    if (!clientId) { $('#loading').textContent = '無法取得業主 ID'; return; }
+    $('#loading').style.display = 'none';
+    $('#config-card').style.display = '';
+    $('#stats-card').style.display = '';
+    await loadConfig();
+    await loadStats();
+  } catch (e) {
+    $('#loading').textContent = '載入失敗：' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

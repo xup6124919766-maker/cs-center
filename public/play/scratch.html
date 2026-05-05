@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刮刮樂</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #f093fb, #f5576c); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .wrap { background: #fff; border-radius: 20px; padding: 28px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .sub { color: #888; font-size: 14px; margin-bottom: 8px; }
+  .meta-bar { display: flex; gap: 12px; justify-content: center; margin-bottom: 14px; font-size: 13px; color: #666; }
+  .meta-tag { background: #f0f0f7; border-radius: 20px; padding: 3px 10px; }
+  .countdown { color: #e74c3c; font-weight: 700; }
+  .scratch-area { position: relative; width: 280px; height: 160px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; }
+  .prize-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: linear-gradient(135deg, #fffde7, #fff9c4); z-index: 1; }
+  canvas#scratchCanvas { position: absolute; inset: 0; z-index: 2; cursor: crosshair; touch-action: none; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, #f093fb, #f5576c); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .hint { font-size: 13px; color: #999; margin-top: 10px; }
+  .coupon { font-size: 20px; font-weight: 700; color: #e67e22; letter-spacing: 2px; margin-top: 8px; }
+  .err { color: #d00; font-size: 14px; margin-top: 8px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+  /* 中獎彈窗 */
+  .win-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .win-modal.show { display: flex; }
+  .win-box { background: #fff; border-radius: 20px; padding: 32px 24px; text-align: center; max-width: 320px; width: 90%; animation: popIn 0.4s ease; }
+  @keyframes popIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-emoji { font-size: 52px; margin-bottom: 12px; }
+  .win-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .win-name { font-size: 18px; color: #f5576c; font-weight: 700; margin-bottom: 12px; }
+  .share-btns { display: flex; gap: 8px; margin-top: 16px; }
+  .share-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: #fff; }
+  .share-line { background: #06C755; }
+  .share-ig { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+  .share-fb { background: #1877f2; }
+  .win-close { margin-top: 14px; padding: 10px; width: 100%; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px; color: #666; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="actName">刮刮樂</h1>
+  <div class="sub" id="actDesc">用手指刮開看看結果！</div>
+  <div class="meta-bar" id="metaBar" style="display:none">
+    <span class="meta-tag" id="remainingTag" style="display:none"></span>
+    <span class="meta-tag countdown" id="countdownTag" style="display:none"></span>
+  </div>
+
+  <input id="channelId" placeholder="您的 LINE ID（選填）">
+
+  <div id="beforeDraw">
+    <button class="btn" id="drawBtn" onclick="startDraw()">抽出結果</button>
+  </div>
+
+  <div id="scratchZone" style="display:none">
+    <div class="scratch-area">
+      <div class="prize-bg" id="prizeBg">
+        <div id="prizeContent" style="font-size:28px">🎁</div>
+        <div id="prizeName" style="font-size:16px;font-weight:700;margin-top:8px"></div>
+        <div id="prizeDesc" style="font-size:12px;color:#888;margin-top:4px"></div>
+        <div id="prizeCoupon" class="coupon" style="display:none"></div>
+      </div>
+      <canvas id="scratchCanvas" width="280" height="160"></canvas>
+    </div>
+    <div class="hint" id="hint">← 用手指或滑鼠刮開 →</div>
+  </div>
+
+  <div class="err" id="errMsg"></div>
+</div>
+
+<!-- 中獎彈窗 -->
+<div class="win-modal" id="winModal">
+  <div class="win-box">
+    <div class="win-emoji">🎊</div>
+    <div class="win-title">恭喜中獎！</div>
+    <div class="win-name" id="modalPrizeName"></div>
+    <div id="modalCoupon" style="font-size:18px;font-weight:700;color:#e67e22;letter-spacing:2px;"></div>
+    <div id="shareBtnsWrap" style="display:none">
+      <div style="font-size:13px;color:#888;margin-top:12px">分享獲得 20 點獎勵</div>
+      <div class="share-btns">
+        <button class="share-btn share-line" onclick="doShare('line')">LINE</button>
+        <button class="share-btn share-ig" onclick="doShare('ig')">IG</button>
+        <button class="share-btn share-fb" onclick="doShare('fb')">FB</button>
+      </div>
+    </div>
+    <button class="win-close" onclick="closeWinModal()">確認</button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const actId = params.get('activity_id');
+let drawResult = null;
+let revealed = false;
+let activityInfo = {};
+let lastParticipationId = null;
+let countdownTimer = null;
+
+// 音效
+const audioCtx = () => { try { return new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } };
+let _ctx = null;
+const getCtx = () => { if (!_ctx) _ctx = audioCtx(); return _ctx; };
+const playSound = (type) => {
+  const ctx = getCtx(); if (!ctx) return;
+  const freqs = type === 'cheerful' ? [523, 659, 784, 1047] : type === 'mystic' ? [220, 277, 330, 440] : [];
+  if (!freqs.length) return;
+  freqs.forEach((f, i) => {
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = f; osc.type = type === 'mystic' ? 'sine' : 'square';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+    osc.start(ctx.currentTime + i * 0.12); osc.stop(ctx.currentTime + i * 0.12 + 0.35);
+  });
+};
+
+// 倒數
+const startCountdown = (seconds) => {
+  const el = document.getElementById('countdownTag');
+  if (!el || seconds === null || seconds === undefined) return;
+  el.style.display = ''; document.getElementById('metaBar').style.display = '';
+  const update = () => {
+    if (seconds <= 0) { el.textContent = '活動已結束'; document.getElementById('drawBtn').disabled = true; clearInterval(countdownTimer); return; }
+    const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+    el.textContent = `剩餘 ${h > 0 ? h+'h ' : ''}${m > 0 ? m+'m ' : ''}${s}s`; seconds--;
+  };
+  update(); countdownTimer = setInterval(update, 1000);
+};
+
+const loadActivity = async () => {
+  if (!actId) { document.getElementById('actName').textContent = '活動不存在'; return; }
+  try {
+    const r = await fetch(`/api/play/${actId}/info`);
+    const data = await r.json();
+    if (!r.ok) { document.getElementById('actName').textContent = data.error || '活動不存在'; document.getElementById('drawBtn').disabled = true; return; }
+    activityInfo = data;
+    document.getElementById('actName').textContent = data.name;
+    document.getElementById('actDesc').textContent = data.config?.description || '刮開看看有沒有中獎！';
+    if (data.remaining_winners !== null && data.remaining_winners !== undefined) {
+      const t = document.getElementById('remainingTag'); t.textContent = `剩餘名額：${data.remaining_winners}`; t.style.display = ''; document.getElementById('metaBar').style.display = '';
+    }
+    if (data.time_remaining_seconds !== null && data.time_remaining_seconds !== undefined) startCountdown(data.time_remaining_seconds);
+  } catch {}
+};
+
+const startDraw = async () => {
+  document.getElementById('drawBtn').disabled = true;
+  document.getElementById('errMsg').textContent = '';
+  const channelId = document.getElementById('channelId').value.trim();
+  try {
+    const r = await fetch(`/api/play/${actId}/draw`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ channel_user_id: channelId || null }) });
+    const data = await r.json();
+    if (!r.ok) { document.getElementById('errMsg').textContent = data.error || '抽獎失敗'; document.getElementById('drawBtn').disabled = false; return; }
+    drawResult = data; lastParticipationId = data.participation_id;
+    setupPrizeBg(data);
+    document.getElementById('beforeDraw').style.display = 'none';
+    document.getElementById('scratchZone').style.display = 'block';
+    initScratch();
+  } catch { document.getElementById('errMsg').textContent = '網路錯誤'; document.getElementById('drawBtn').disabled = false; }
+};
+
+const setupPrizeBg = (data) => {
+  if (data.won && data.prize) {
+    document.getElementById('prizeContent').textContent = '🎉';
+    document.getElementById('prizeName').textContent = data.prize.name;
+    document.getElementById('prizeDesc').textContent = data.prize.description || '恭喜中獎！';
+    if (data.prize.coupon_code) { document.getElementById('prizeCoupon').textContent = '優惠碼：' + data.prize.coupon_code; document.getElementById('prizeCoupon').style.display = 'block'; }
+  } else {
+    document.getElementById('prizeContent').textContent = '😅';
+    document.getElementById('prizeName').textContent = '銘謝惠顧';
+    document.getElementById('prizeDesc').textContent = '謝謝您的參與！';
+  }
+};
+
+const initScratch = () => {
+  const canvas = document.getElementById('scratchCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#b0b0b0'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#999'; ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText('請刮開此區域', canvas.width/2, canvas.height/2-10);
+  ctx.font = '14px system-ui'; ctx.fillText('Scratch to reveal', canvas.width/2, canvas.height/2+15);
+  let painting = false;
+  const scratch = (x, y) => { ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(x, y, 28, 0, 2*Math.PI); ctx.fill(); checkReveal(ctx, canvas); };
+  canvas.addEventListener('mousedown', e => { painting = true; scratch(...getPos(e, canvas)); });
+  canvas.addEventListener('mousemove', e => { if (painting) scratch(...getPos(e, canvas)); });
+  canvas.addEventListener('mouseup', () => { painting = false; });
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); painting = true; scratch(...getPos(e.touches[0], canvas)); }, {passive:false});
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (painting) scratch(...getPos(e.touches[0], canvas)); }, {passive:false});
+  canvas.addEventListener('touchend', () => { painting = false; });
+};
+
+const getPos = (e, canvas) => { const rect = canvas.getBoundingClientRect(); return [e.clientX - rect.left, e.clientY - rect.top]; };
+
+const checkReveal = (ctx, canvas) => {
+  if (revealed) return;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); const data = imageData.data;
+  let transparent = 0;
+  for (let i = 3; i < data.length; i += 4) { if (data[i] < 128) transparent++; }
+  const pct = transparent / (canvas.width * canvas.height);
+  if (pct > 0.5) {
+    revealed = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('hint').textContent = drawResult.won ? '恭喜中獎！' : '下次再加油！';
+    if (drawResult?.won && drawResult?.prize) {
+      playSound(activityInfo.sound_effect === 'silent' ? null : (activityInfo.sound_effect || 'cheerful'));
+      showWinModal(drawResult.prize);
+    }
+    if (drawResult?.participation_id && !drawResult?.won) {
+      setTimeout(() => { location.href = `/feedback/activity.html?activity_id=${encodeURIComponent(actId)}&participation_id=${encodeURIComponent(drawResult.participation_id)}`; }, 3000);
+    }
+  }
+};
+
+const showWinModal = (prize) => {
+  document.getElementById('modalPrizeName').textContent = prize.name;
+  document.getElementById('modalCoupon').textContent = prize.coupon_code ? '優惠碼：' + prize.coupon_code : '';
+  if (activityInfo.share_bonus_enabled) document.getElementById('shareBtnsWrap').style.display = '';
+  document.getElementById('winModal').classList.add('show');
+};
+const closeWinModal = () => {
+  document.getElementById('winModal').classList.remove('show');
+  if (drawResult?.participation_id) {
+    setTimeout(() => { location.href = `/feedback/activity.html?activity_id=${encodeURIComponent(actId)}&participation_id=${encodeURIComponent(drawResult.participation_id)}`; }, 1000);
+  }
+};
+const doShare = async (channel) => {
+  if (!lastParticipationId) return;
+  const channelId = document.getElementById('channelId').value.trim();
+  try {
+    const r = await fetch(`/api/play/${lastParticipationId}/share`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ channel, channel_user_id: channelId || null }) });
+    const data = await r.json();
+    alert(data.ok ? `已獲得 ${data.bonus_points} 點獎勵！` : (data.message || '已領取過'));
+  } catch {}
+};
+
+loadActivity();
+</script>
+</body>
+</html>

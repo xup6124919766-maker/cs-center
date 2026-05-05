@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧客時間軸 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 800px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+  /* 顧客摘要 */
+  .customer-header { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .customer-avatar { width: 56px; height: 56px; border-radius: 50%; background: #5856d6; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 24px; flex-shrink: 0; }
+  .customer-info h2 { margin: 0 0 4px; font-size: 18px; }
+  .customer-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .stat-pill { display: flex; flex-direction: column; align-items: center; background: #f8f8f8; border-radius: 8px; padding: 8px 16px; min-width: 80px; }
+  .stat-val { font-size: 20px; font-weight: 700; color: #5856d6; }
+  .stat-lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag { background: #e8eaf6; color: #3949ab; border-radius: 10px; padding: 2px 10px; font-size: 12px; }
+
+  /* 篩選按鈕 */
+  .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-btn { padding: 6px 14px; border: 1px solid #ddd; border-radius: 20px; background: #fff; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .filter-btn.active { background: #5856d6; color: #fff; border-color: #5856d6; }
+  .filter-btn:hover:not(.active) { background: #f0f0f0; }
+
+  /* 時間軸 */
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before { content: ''; position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: #e8e8e8; }
+  .timeline-item { position: relative; margin-bottom: 20px; }
+  .timeline-dot { position: absolute; left: -27px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; background: #fff; border: 2px solid #e0e0e0; top: 2px; }
+  .timeline-dot.message { border-color: #5856d6; background: #e8eaf6; }
+  .timeline-dot.order { border-color: #f57c00; background: #fff3e0; }
+  .timeline-dot.game { border-color: #00838f; background: #e0f7fa; }
+  .timeline-dot.broadcast { border-color: #7b1fa2; background: #f3e5f5; }
+  .timeline-dot.journey { border-color: #2e7d32; background: #e8f5e9; }
+  .timeline-dot.note { border-color: #1565c0; background: #e3f2fd; }
+  .timeline-dot.audit { border-color: #888; background: #f5f5f5; }
+
+  .timeline-content { background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 12px 16px; }
+  .timeline-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .timeline-title { font-size: 14px; font-weight: 600; }
+  .timeline-time { font-size: 12px; color: #888; white-space: nowrap; }
+  .timeline-preview { font-size: 13px; color: #666; margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge-line { background: #dcf8c6; color: #128c7e; }
+  .badge-fb { background: #e3f2fd; color: #1565c0; }
+  .badge-status { background: #e8eaf6; color: #3949ab; }
+  .load-more { text-align: center; padding: 16px 0; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-primary:hover { background: #4644c4; }
+  .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; }
+  .btn-secondary:hover { background: #f5f5f5; }
+  .empty { text-align: center; color: #999; padding: 40px 0; font-size: 14px; }
+  .loading { text-align: center; color: #888; padding: 24px; font-size: 14px; }
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; z-index: 9999; display: none; }
+  #toast.show { display: block; }
+  #toast.success { background: #43a047; }
+  #toast.error { background: #e53935; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/index.html">客服</a>
+  <a href="/dashboard.html">儀表板</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/profile.html">個人設定</a>
+</nav>
+
+<div class="container">
+
+  <!-- 顧客摘要卡片 -->
+  <div class="card" id="customer-card">
+    <div class="loading">載入顧客資料中…</div>
+  </div>
+
+  <!-- 篩選 + 匯出 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-btn active" data-type="">全部</button>
+      <button class="filter-btn" data-type="message">訊息</button>
+      <button class="filter-btn" data-type="order">訂單</button>
+      <button class="filter-btn" data-type="game">活動</button>
+      <button class="filter-btn" data-type="broadcast">行銷</button>
+    </div>
+    <button class="btn btn-secondary" onclick="exportCsv()" style="font-size:13px;">匯出 CSV</button>
+  </div>
+
+  <!-- 時間軸 -->
+  <div class="card">
+    <div class="timeline" id="timeline">
+      <div class="loading">載入時間軸中…</div>
+    </div>
+    <div class="load-more" id="load-more" style="display:none;">
+      <button class="btn btn-secondary" onclick="loadMore()">載入更多</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const getCsrfToken = () => {
+  const match = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='));
+  return match ? match.slice(8) : '';
+};
+
+const api = async (method, path, body) => {
+  const opts = { method, headers: { 'content-type': 'application/json', 'x-csrf-token': getCsrfToken() } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+};
+
+const toast = (msg, type = '') => {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3000);
+};
+
+const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+const fmtTime = (ms) => {
+  if (!ms) return '—';
+  const d = new Date(ms);
+  return d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }) + ' ' +
+    d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+};
+
+// ─── 取得 URL 參數 ───
+const params = new URLSearchParams(location.search);
+const customerId = parseInt(params.get('id') || '0', 10);
+const clientId = params.get('client_id') || '';
+
+if (!customerId) {
+  document.getElementById('customer-card').innerHTML = '<div class="empty">缺少 id 參數，請從顧客卡片進入此頁</div>';
+}
+
+let allEvents = [];
+let filteredEvents = [];
+let displayCount = 20;
+let activeType = '';
+let customer = null;
+
+// ─── 載入顧客資料 ───
+const loadCustomer = async () => {
+  try {
+    const qs = clientId ? `?client_id=${clientId}` : '';
+    const data = await api('GET', `/api/customers/${customerId}${qs}`);
+    customer = data.customer;
+    renderCustomerCard(customer);
+  } catch (e) {
+    document.getElementById('customer-card').innerHTML = `<div class="empty">無法載入顧客資料：${esc(e.message)}</div>`;
+  }
+};
+
+const renderCustomerCard = (c) => {
+  let tags = [];
+  try { tags = JSON.parse(c.tags || '[]'); } catch {}
+  let customFields = {};
+  try { customFields = JSON.parse(c.custom_fields || '{}'); } catch {}
+
+  document.getElementById('customer-card').innerHTML = `
+    <div class="customer-header">
+      <div class="customer-avatar">👤</div>
+      <div class="customer-info" style="flex:1;">
+        <h2>${esc(c.name || '未知顧客')} <span style="font-size:13px;font-weight:400;color:#888;">#${c.id}</span></h2>
+        <div style="font-size:13px;color:#666;">${esc(c.phone || '')}${c.phone && c.email ? ' · ' : ''}${esc(c.email || '')}</div>
+        ${tags.length ? `<div class="tag-list">${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+        ${c.is_blocked ? '<div style="margin-top:6px;color:#c62828;font-size:12px;">封鎖中</div>' : ''}
+      </div>
+    </div>
+    <div class="customer-stats" id="customer-stats">
+      <div class="stat-pill"><div class="stat-val" id="stat-msgs">—</div><div class="stat-lbl">訊息數</div></div>
+      <div class="stat-pill"><div class="stat-val" id="stat-orders">—</div><div class="stat-lbl">訂單數</div></div>
+      <div class="stat-pill"><div class="stat-val" id="stat-amount">—</div><div class="stat-lbl">消費金額</div></div>
+    </div>
+  `;
+};
+
+// ─── 載入時間軸 ───
+const loadTimeline = async () => {
+  const qs = new URLSearchParams({ limit: 200 });
+  if (clientId) qs.set('client_id', clientId);
+  try {
+    const data = await api('GET', `/api/customers/${customerId}/timeline?${qs}`);
+    allEvents = data.events || [];
+
+    // 計算 stats
+    const msgs = allEvents.filter(e => e.type === 'message');
+    const orders = allEvents.filter(e => e.type === 'order');
+    const totalAmount = orders.reduce((sum, o) => {
+      const m = (o.preview || '').match(/金額：(\d+(\.\d+)?)/);
+      return sum + (m ? parseFloat(m[1]) : 0);
+    }, 0);
+
+    const statMsgs = document.getElementById('stat-msgs');
+    const statOrders = document.getElementById('stat-orders');
+    const statAmount = document.getElementById('stat-amount');
+    if (statMsgs) statMsgs.textContent = msgs.length;
+    if (statOrders) statOrders.textContent = orders.length;
+    if (statAmount) statAmount.textContent = totalAmount > 0 ? `$${Math.round(totalAmount)}` : '—';
+
+    applyFilter();
+  } catch (e) {
+    document.getElementById('timeline').innerHTML = `<div class="empty">無法載入時間軸：${esc(e.message)}</div>`;
+  }
+};
+
+// ─── 篩選邏輯 ───
+const applyFilter = () => {
+  const gameTypes = ['game'];
+  const marketingTypes = ['broadcast', 'journey'];
+
+  if (!activeType) {
+    filteredEvents = allEvents;
+  } else if (activeType === 'game') {
+    filteredEvents = allEvents.filter(e => gameTypes.includes(e.type));
+  } else if (activeType === 'broadcast') {
+    filteredEvents = allEvents.filter(e => marketingTypes.includes(e.type));
+  } else {
+    filteredEvents = allEvents.filter(e => e.type === activeType);
+  }
+
+  displayCount = 20;
+  renderTimeline();
+};
+
+const typeClass = (type) => {
+  const m = { message: 'message', order: 'order', game: 'game', broadcast: 'broadcast', journey: 'journey', note: 'note', audit: 'audit' };
+  return m[type] || '';
+};
+
+const renderTimeline = () => {
+  const container = document.getElementById('timeline');
+  const toShow = filteredEvents.slice(0, displayCount);
+
+  if (!toShow.length) {
+    container.innerHTML = '<div class="empty">此分類暫無事件</div>';
+    document.getElementById('load-more').style.display = 'none';
+    return;
+  }
+
+  container.innerHTML = toShow.map(e => `
+    <div class="timeline-item" data-type="${esc(e.type)}">
+      <div class="timeline-dot ${typeClass(e.type)}">${esc(e.icon || '•')}</div>
+      <div class="timeline-content">
+        <div class="timeline-header">
+          <span class="timeline-title">${esc(e.title)}</span>
+          <span class="timeline-time">${fmtTime(e.ts)}</span>
+        </div>
+        ${e.preview ? `<div class="timeline-preview">${esc(e.preview)}</div>` : ''}
+        ${e.type === 'message' && e.conversation_id ? `<div style="margin-top:4px;"><a href="/index.html" style="font-size:12px;color:#5856d6;">→ 對話 #${e.conversation_id}</a></div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  const loadMoreEl = document.getElementById('load-more');
+  loadMoreEl.style.display = filteredEvents.length > displayCount ? 'block' : 'none';
+};
+
+window.loadMore = () => {
+  displayCount += 20;
+  renderTimeline();
+};
+
+// ─── 篩選按鈕 ───
+document.getElementById('filter-bar').addEventListener('click', (e) => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeType = btn.dataset.type || '';
+  applyFilter();
+});
+
+// ─── 匯出 CSV ───
+window.exportCsv = () => {
+  if (!filteredEvents.length) { toast('無資料可匯出', 'error'); return; }
+  const header = '時間,類型,標題,內容\n';
+  const rows = filteredEvents.map(e => {
+    const cols = [fmtTime(e.ts), e.type, e.title, (e.preview || '')];
+    return cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',');
+  });
+  const csv = header + rows.join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `customer-${customerId}-timeline.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV 已下載', 'success');
+};
+
+// ─── Init ───
+const init = async () => {
+  if (!customerId) return;
+  await Promise.all([loadCustomer(), loadTimeline()]);
+};
+
+init();
+</script>
+</body>
+</html>

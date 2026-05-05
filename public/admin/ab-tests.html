@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B 測試 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; flex-wrap: wrap; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; transition: opacity .15s; }
+  .btn:active { opacity: .7; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-green { background: #34c759; color: #fff; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .btn-gray { background: #e5e5ea; color: #333; }
+  .btn-orange { background: #ff9500; color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+  .badge-draft { background: #e5e5ea; color: #666; }
+  .badge-running { background: #cce5ff; color: #004085; }
+  .badge-completed { background: #d1f7e0; color: #1b7c3e; }
+  .badge-cancelled { background: #ffe0e0; color: #b00; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  textarea { resize: vertical; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; overflow-y: auto; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 760px; width: 94%; margin: 32px auto; }
+  #msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 14px; }
+  #msg.ok { background: #d1f7e0; color: #1b7c3e; display: block; }
+  #msg.err { background: #ffe0e0; color: #b00; display: block; }
+
+  /* A/B 並排結果 */
+  .ab-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .ab-variant-box { border: 2px solid #e5e5ea; border-radius: 10px; padding: 16px; }
+  .ab-variant-box.winner { border-color: #34c759; }
+  .ab-bubble { background: #f0f4ff; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #333; white-space: pre-wrap; word-break: break-all; margin-bottom: 12px; max-height: 120px; overflow-y: auto; }
+  .metric-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f5f5f5; }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-label { color: #888; }
+  .metric-val { font-weight: 600; }
+  .metric-val.better { color: #1b7c3e; }
+  .conclusion-bar { background: #f0faf3; border: 1px solid #a8ddb8; border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 14px; color: #1b5e27; font-weight: 600; }
+  .conclusion-bar.inconclusive { background: #fff8e1; border-color: #ffe08a; color: #7a5c00; }
+  .ab-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .section-title { font-size: 13px; font-weight: 700; color: #5856d6; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .split-radio-group { display: flex; gap: 12px; flex-wrap: wrap; }
+  .split-radio-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: #333; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/knowledge.html">知識庫</a>
+  <a href="/admin/games.html">活動</a>
+  <a href="/admin/broadcasts.html">廣播</a>
+  <a href="/admin/ab-tests.html" class="active">A/B Test</a>
+  <a href="/admin/ecommerce.html">訂單</a>
+  <a href="/admin/rich-menus.html">圖文選單</a>
+  <a href="/admin/journeys.html">旅程</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div id="msg"></div>
+
+  <!-- 列表標頭 -->
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;gap:8px;align-items:center">
+      <h2 style="margin:0">A/B Test 廣播</h2>
+      <select id="statusFilter" onchange="load()" style="width:auto;padding:4px 8px;font-size:13px">
+        <option value="">全部</option>
+        <option value="draft">草稿</option>
+        <option value="running">進行中</option>
+        <option value="completed">已完成</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="openCreate()">+ 新建 A/B Test</button>
+  </div>
+
+  <!-- 列表 -->
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>名稱</th>
+          <th>通道</th>
+          <th>狀態</th>
+          <th>測試目標</th>
+          <th>主要指標</th>
+          <th>勝者</th>
+          <th>提升</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─── 建立 / 編輯 Modal ─── -->
+<div class="overlay" id="editOverlay" onclick="closeEditModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="editTitle" style="margin:0 0 16px">新建 A/B Test</h3>
+
+    <div class="form-row">
+      <div><label>名稱 *</label><input id="f_name" placeholder="六月活動文案測試"></div>
+      <div><label>通道 *</label>
+        <select id="f_channel">
+          <option value="line">LINE</option>
+          <option value="fb">Facebook</option>
+          <option value="all">全部</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row single">
+      <div><label>假設（選填）</label>
+        <textarea id="f_hypothesis" rows="2" placeholder="我猜 B 版本強調情緒效果更好..."></textarea>
+      </div>
+    </div>
+
+    <!-- 分眾條件 -->
+    <div class="card" style="background:#f8f8f8;padding:12px;margin-bottom:12px">
+      <div class="section-title">分眾條件（可選）</div>
+      <div class="form-row">
+        <div><label>標籤（逗號分隔）</label><input id="f_tags" placeholder="VIP, 潛力客"></div>
+        <div><label>情緒篩選</label>
+          <select id="f_emotion" multiple style="height:60px">
+            <option value="positive">positive</option>
+            <option value="neutral">neutral</option>
+            <option value="negative">negative</option>
+            <option value="angry">angry</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- A / B 版本 -->
+    <div class="ab-cols" style="margin-bottom:12px">
+      <div>
+        <div class="section-title">A 版本</div>
+        <div class="form-row single" style="margin-bottom:6px">
+          <div><label>版本標籤</label><input id="f_label_a" value="A" placeholder="理性版"></div>
+        </div>
+        <div><label>訊息內容 *</label>
+          <textarea id="f_content_a" rows="5" placeholder="支援 {customer.name} 等變數"></textarea>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#888">預覽：</div>
+        <div class="ab-bubble" id="preview_a" style="margin-top:4px;color:#999;font-style:italic;font-size:12px">（輸入內容後即時預覽）</div>
+      </div>
+      <div>
+        <div class="section-title">B 版本</div>
+        <div class="form-row single" style="margin-bottom:6px">
+          <div><label>版本標籤</label><input id="f_label_b" value="B" placeholder="情緒版"></div>
+        </div>
+        <div><label>訊息內容 *</label>
+          <textarea id="f_content_b" rows="5" placeholder="支援 {customer.name} 等變數"></textarea>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#888">預覽：</div>
+        <div class="ab-bubble" id="preview_b" style="margin-top:4px;color:#999;font-style:italic;font-size:12px">（輸入內容後即時預覽）</div>
+      </div>
+    </div>
+
+    <!-- 分流設定 -->
+    <div class="card" style="background:#f8f8f8;padding:12px;margin-bottom:12px">
+      <div class="section-title">分流設定</div>
+      <div class="form-row triple">
+        <div>
+          <label>分流策略</label>
+          <div class="split-radio-group" style="margin-top:4px">
+            <label><input type="radio" name="split" value="random_50_50" checked> 50/50</label>
+            <label><input type="radio" name="split" value="random_30_70"> 30/70</label>
+            <label><input type="radio" name="split" value="random_70_30"> 70/30</label>
+          </div>
+        </div>
+        <div>
+          <label>測試比例（先送幾%）</label>
+          <select id="f_test_size">
+            <option value="20">20%</option>
+            <option value="30" selected>30%</option>
+            <option value="50">50%</option>
+            <option value="100">100%（全部）</option>
+          </select>
+        </div>
+        <div>
+          <label>主要指標</label>
+          <select id="f_metric">
+            <option value="positive_feedback">正面評價率</option>
+            <option value="reply_rate">回覆率</option>
+            <option value="click_rate">點擊率</option>
+            <option value="open_rate">開啟率</option>
+            <option value="delivery_rate">送達率</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px">
+          最少樣本數（每個 variant）：
+          <input id="f_min_sample" type="number" min="5" max="500" value="20" style="width:80px">
+        </label>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-gray" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveTest()">儲存草稿</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 結果 Modal ─── -->
+<div class="overlay" id="resultOverlay" onclick="closeResultModal()">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:880px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <h3 id="resultTitle" style="margin:0 0 4px"></h3>
+        <div id="resultMeta" style="font-size:13px;color:#888"></div>
+      </div>
+      <button onclick="closeResultModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1">&#x2715;</button>
+    </div>
+
+    <div class="ab-cols" id="resultCols">
+      <!-- 動態填入 -->
+    </div>
+
+    <div id="conclusionBar" class="conclusion-bar" style="display:none"></div>
+
+    <div class="ab-actions" id="resultActions"></div>
+  </div>
+</div>
+
+<script>
+let tests = [];
+let currentEditId = null;
+let currentResultId = null;
+
+const show = (msg, type) => {
+  const el = document.getElementById('msg');
+  el.textContent = msg;
+  el.className = type;
+  setTimeout(() => { el.className = ''; }, 4000);
+};
+
+const api = async (method, path, body) => {
+  const r = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return r.json();
+};
+
+const pct = (v) => `${Math.round((v || 0) * 100)}%`;
+const metricLabel = (key) => ({
+  positive_feedback: '正面評價率',
+  reply_rate: '回覆率',
+  click_rate: '點擊率',
+  open_rate: '開啟率',
+  delivery_rate: '送達率',
+})[key] || key;
+
+const winnerBadge = (w) => {
+  if (!w) return '—';
+  if (w === 'A') return '<span style="background:#5856d6;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">A 勝</span>';
+  if (w === 'B') return '<span style="background:#34c759;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">B 勝</span>';
+  if (w === 'tie') return '<span style="background:#888;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">平手</span>';
+  return '<span style="background:#fff3cd;color:#856404;padding:2px 8px;border-radius:20px;font-size:12px">未決定</span>';
+};
+
+// ─── 列表 ───
+const load = async () => {
+  const status = document.getElementById('statusFilter').value;
+  const url = '/api/ab-tests' + (status ? `?status=${status}` : '');
+  const data = await api('GET', url);
+  tests = data.ab_tests || [];
+  render();
+};
+
+const render = () => {
+  const tbody = document.getElementById('listBody');
+  if (!tests.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#999;text-align:center;padding:24px">尚無 A/B Test</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tests.map(t => `
+    <tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.name}">${t.name}</td>
+      <td>${t.channel.toUpperCase()}</td>
+      <td><span class="badge badge-${t.status}">${statusLabel(t.status)}</span></td>
+      <td>${t.test_size_targets || 0} / ${t.total_targets || 0}</td>
+      <td>${metricLabel(t.primary_metric)}</td>
+      <td>${winnerBadge(t.winner_variant)}</td>
+      <td>${t.winner_lift_percent != null ? `+${t.winner_lift_percent}%` : '—'}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${t.status === 'draft' ? `<button class="btn btn-green" style="padding:3px 8px;font-size:12px" onclick="launch(${t.id})">啟動</button>` : ''}
+        ${t.status === 'draft' ? `<button class="btn btn-gray" style="padding:3px 8px;font-size:12px" onclick="openEdit(${t.id})">編輯</button>` : ''}
+        ${['running','completed'].includes(t.status) ? `<button class="btn btn-primary" style="padding:3px 8px;font-size:12px" onclick="openResult(${t.id})">結果</button>` : ''}
+        ${t.status !== 'running' ? `<button class="btn btn-red" style="padding:3px 8px;font-size:12px" onclick="deleteTest(${t.id})">刪除</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+};
+
+const statusLabel = (s) => ({ draft: '草稿', running: '進行中', completed: '已完成', cancelled: '已取消' })[s] || s;
+
+// ─── 即時預覽 ───
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'f_content_a') document.getElementById('preview_a').textContent = e.target.value || '（空白）';
+  if (e.target.id === 'f_content_b') document.getElementById('preview_b').textContent = e.target.value || '（空白）';
+});
+
+// ─── 建立編輯 ───
+const openCreate = () => {
+  currentEditId = null;
+  document.getElementById('editTitle').textContent = '新建 A/B Test';
+  ['f_name','f_hypothesis','f_tags','f_content_a','f_content_b'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_label_a').value = 'A';
+  document.getElementById('f_label_b').value = 'B';
+  document.getElementById('f_channel').value = 'line';
+  document.getElementById('f_test_size').value = '30';
+  document.getElementById('f_metric').value = 'positive_feedback';
+  document.getElementById('f_min_sample').value = '20';
+  document.querySelectorAll('input[name=split]').forEach(r => r.checked = r.value === 'random_50_50');
+  document.getElementById('preview_a').textContent = '（輸入內容後即時預覽）';
+  document.getElementById('preview_b').textContent = '（輸入內容後即時預覽）';
+  document.getElementById('editOverlay').style.display = 'block';
+};
+
+const openEdit = async (id) => {
+  const data = await api('GET', `/api/ab-tests/${id}`);
+  const t = data.ab_test;
+  if (!t) return;
+  currentEditId = id;
+  document.getElementById('editTitle').textContent = '編輯 A/B Test';
+  document.getElementById('f_name').value = t.name || '';
+  document.getElementById('f_hypothesis').value = t.hypothesis || '';
+  document.getElementById('f_channel').value = t.channel || 'line';
+  document.getElementById('f_label_a').value = t.variant_a_label || 'A';
+  document.getElementById('f_label_b').value = t.variant_b_label || 'B';
+  document.getElementById('f_content_a').value = t.variant_a_content || '';
+  document.getElementById('f_content_b').value = t.variant_b_content || '';
+  document.getElementById('preview_a').textContent = t.variant_a_content || '（空白）';
+  document.getElementById('preview_b').textContent = t.variant_b_content || '（空白）';
+  document.getElementById('f_test_size').value = String(t.test_size_percent || 30);
+  document.getElementById('f_metric').value = t.primary_metric || 'positive_feedback';
+  document.getElementById('f_min_sample').value = String(t.min_sample_per_variant || 20);
+  const strat = t.split_strategy || 'random_50_50';
+  document.querySelectorAll('input[name=split]').forEach(r => r.checked = r.value === strat);
+  // 解析 segment_filter
+  try {
+    const sf = JSON.parse(t.segment_filter || '{}');
+    document.getElementById('f_tags').value = (sf.tags || []).join(', ');
+    const emotionEl = document.getElementById('f_emotion');
+    Array.from(emotionEl.options).forEach(o => o.selected = (sf.emotion_in || []).includes(o.value));
+  } catch {}
+  document.getElementById('editOverlay').style.display = 'block';
+};
+
+const closeEditModal = () => { document.getElementById('editOverlay').style.display = 'none'; };
+
+const getFilter = () => {
+  const tags = document.getElementById('f_tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const emotionEl = document.getElementById('f_emotion');
+  const emotions = Array.from(emotionEl.selectedOptions).map(o => o.value);
+  const filter = {};
+  if (tags.length) filter.tags = tags;
+  if (emotions.length) filter.emotion_in = emotions;
+  return filter;
+};
+
+const getSplitStrategy = () => {
+  const checked = document.querySelector('input[name=split]:checked');
+  return checked ? checked.value : 'random_50_50';
+};
+
+const saveTest = async () => {
+  const name = document.getElementById('f_name').value.trim();
+  const contentA = document.getElementById('f_content_a').value.trim();
+  const contentB = document.getElementById('f_content_b').value.trim();
+  if (!name) { alert('請填寫名稱'); return; }
+  if (!contentA || !contentB) { alert('A 版本和 B 版本內容都必須填寫'); return; }
+
+  const filter = getFilter();
+  const body = {
+    name,
+    hypothesis: document.getElementById('f_hypothesis').value.trim() || null,
+    channel: document.getElementById('f_channel').value,
+    segment_filter: Object.keys(filter).length ? filter : null,
+    variant_a_content: contentA,
+    variant_b_content: contentB,
+    variant_a_label: document.getElementById('f_label_a').value.trim() || 'A',
+    variant_b_label: document.getElementById('f_label_b').value.trim() || 'B',
+    split_strategy: getSplitStrategy(),
+    test_size_percent: parseInt(document.getElementById('f_test_size').value, 10),
+    primary_metric: document.getElementById('f_metric').value,
+    min_sample_per_variant: parseInt(document.getElementById('f_min_sample').value, 10) || 20,
+  };
+
+  let result;
+  if (currentEditId) {
+    result = await api('PUT', `/api/ab-tests/${currentEditId}`, body);
+  } else {
+    result = await api('POST', '/api/ab-tests', body);
+  }
+
+  if (result.ok || result.id) {
+    show('A/B Test 已儲存', 'ok');
+    closeEditModal();
+    load();
+  } else {
+    show(result.error || '儲存失敗', 'err');
+  }
+};
+
+// ─── 啟動 ───
+const launch = async (id) => {
+  if (!confirm('確定啟動 A/B 測試？啟動後將隨機分組並送出廣播。')) return;
+  const r = await api('POST', `/api/ab-tests/${id}/launch`, {});
+  if (r.ok) {
+    show(`已啟動！A 組 ${r.group_a} 人、B 組 ${r.group_b} 人，廣播送出中`, 'ok');
+    load();
+  } else {
+    show(r.error || '啟動失敗', 'err');
+  }
+};
+
+// ─── 刪除 ───
+const deleteTest = async (id) => {
+  if (!confirm('確定刪除此 A/B Test？')) return;
+  const r = await api('DELETE', `/api/ab-tests/${id}`);
+  if (r.ok) { show('已刪除', 'ok'); load(); } else { show(r.error || '刪除失敗', 'err'); }
+};
+
+// ─── 結果 Modal ───
+const openResult = async (id) => {
+  currentResultId = id;
+  document.getElementById('resultTitle').textContent = '載入中...';
+  document.getElementById('resultCols').innerHTML = '';
+  document.getElementById('conclusionBar').style.display = 'none';
+  document.getElementById('resultActions').innerHTML = '';
+  document.getElementById('resultOverlay').style.display = 'block';
+  await refreshResult(id);
+};
+
+const closeResultModal = () => { document.getElementById('resultOverlay').style.display = 'none'; };
+
+const refreshResult = async (id) => {
+  const [detail, results] = await Promise.all([
+    api('GET', `/api/ab-tests/${id}`),
+    api('GET', `/api/ab-tests/${id}/results`),
+  ]);
+  const test = detail.ab_test;
+  if (!test) { show('無法取得測試資訊', 'err'); return; }
+
+  document.getElementById('resultTitle').textContent = test.name;
+  document.getElementById('resultMeta').textContent =
+    `通道: ${test.channel.toUpperCase()} | 指標: ${metricLabel(test.primary_metric)} | 狀態: ${statusLabel(test.status)}`;
+
+  const va = results.variant_a;
+  const vb = results.variant_b;
+  const metricKey = results.metric_key || 'positive_feedback_rate';
+
+  const renderVariant = (v, label, isWinner) => {
+    if (!v) return `<div class="ab-variant-box"><div style="color:#999;font-size:13px">尚無資料</div></div>`;
+    const winnerClass = isWinner ? ' winner' : '';
+    const betterClass = (metricKey) => {
+      if (!va || !vb) return '';
+      const aVal = va[metricKey] || 0;
+      const bVal = vb[metricKey] || 0;
+      if (label === 'A' && aVal > bVal) return ' better';
+      if (label === 'B' && bVal > aVal) return ' better';
+      return '';
+    };
+    return `
+      <div class="ab-variant-box${winnerClass}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:18px;font-weight:700;color:#5856d6">${v.label || label}</span>
+          ${isWinner ? '<span style="background:#34c759;color:#fff;padding:2px 8px;border-radius:20px;font-size:12px">勝出</span>' : ''}
+        </div>
+        <div class="ab-bubble">廣播 ID: ${v.broadcast_id}<br>（文案見草稿欄）</div>
+        <div class="metric-row">
+          <span class="metric-label">目標人數</span>
+          <span class="metric-val">${v.total}</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">已送出</span>
+          <span class="metric-val${betterClass('delivery_rate')}">${v.sent} 人（${pct(v.delivery_rate)}）</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">開啟率</span>
+          <span class="metric-val${betterClass('open_rate')}">${pct(v.open_rate)}（${v.read} 人）</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">回覆率</span>
+          <span class="metric-val${betterClass('reply_rate')}">${pct(v.reply_rate)}（${v.reply_count} 人）</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">正面評價率</span>
+          <span class="metric-val${betterClass('positive_feedback_rate')}">${pct(v.positive_feedback_rate)}（${v.positive_feedback}/${v.total_feedback} 人）</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">取消訂閱率</span>
+          <span class="metric-val">${pct(v.unsub_rate)}（${v.unsubscribe} 人）</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const winner = results.winner;
+  const isWinnerA = winner === 'A';
+  const isWinnerB = winner === 'B';
+
+  document.getElementById('resultCols').innerHTML =
+    renderVariant(va, 'A', isWinnerA) + renderVariant(vb, 'B', isWinnerB);
+
+  // 結論欄
+  const conclusionEl = document.getElementById('conclusionBar');
+  conclusionEl.style.display = 'block';
+  if (winner === 'A' || winner === 'B') {
+    const liftTxt = results.lift_pct != null ? ` 提升 +${results.lift_pct}%` : '';
+    conclusionEl.className = 'conclusion-bar';
+    const winnerLabel = winner === 'A' ? (va?.label || 'A') : (vb?.label || 'B');
+    conclusionEl.innerHTML = `結論：${winnerLabel} 版本勝出${liftTxt}（統計顯著，指標：${metricLabel(test.primary_metric)}）`;
+  } else if (winner === 'tie') {
+    conclusionEl.className = 'conclusion-bar';
+    conclusionEl.innerHTML = '結論：兩個版本平手，差異不顯著';
+  } else {
+    conclusionEl.className = 'conclusion-bar inconclusive';
+    const reason = (va && va.total < test.min_sample_per_variant) || (vb && vb.total < test.min_sample_per_variant)
+      ? `樣本不足（需 ${test.min_sample_per_variant} 人/variant）`
+      : '差異不到 10 個百分點，建議繼續觀察';
+    conclusionEl.innerHTML = `結論：尚未決定（${reason}）`;
+  }
+
+  // 動作按鈕
+  const actionsEl = document.getElementById('resultActions');
+  let actionsHtml = `<button class="btn btn-gray" onclick="refreshResult(${id})">重新整理</button>`;
+
+  if (test.status === 'running') {
+    actionsHtml += `
+      <button class="btn btn-primary" onclick="decideWinner(${id}, null)">統計決定勝者</button>
+      <button class="btn btn-orange" onclick="manualWinner(${id}, 'A')">手動選 A</button>
+      <button class="btn btn-orange" onclick="manualWinner(${id}, 'B')">手動選 B</button>
+    `;
+  }
+
+  if (test.status === 'completed' && !test.rest_sent_at) {
+    const restCount = test.total_targets - test.test_size_targets;
+    actionsHtml += `
+      <button class="btn btn-green" onclick="sendRest(${id})">
+        一鍵把勝者送給剩下 ${restCount > 0 ? restCount + ' 人' : '所有未收到的人'}
+      </button>
+    `;
+  }
+
+  if (test.rest_sent_at) {
+    actionsHtml += `<span style="color:#1b7c3e;font-size:13px;padding:8px">已送出勝者廣播（廣播 ID: ${test.rest_broadcast_id}）</span>`;
+  }
+
+  actionsEl.innerHTML = actionsHtml;
+};
+
+const decideWinner = async (id, manual) => {
+  const label = manual ? `手動指定 ${manual} 為勝者` : '統計決定勝者';
+  if (!confirm(`確定要 ${label}？`)) return;
+  const body = manual ? { manual_winner: manual } : {};
+  const r = await api('POST', `/api/ab-tests/${id}/decide-winner`, body);
+  if (r.ok) {
+    show(`勝者已決定：${r.winner}${r.lift_pct != null ? `，提升 +${r.lift_pct}%` : ''}`, 'ok');
+    load();
+    await refreshResult(id);
+  } else {
+    show(r.error || '操作失敗', 'err');
+  }
+};
+
+const manualWinner = (id, variant) => decideWinner(id, variant);
+
+const sendRest = async (id) => {
+  if (!confirm('確定把勝者版本發送給剩下尚未收到的分眾？此操作不可撤銷。')) return;
+  const r = await api('POST', `/api/ab-tests/${id}/send-winner-to-rest`, {});
+  if (r.ok) {
+    show(`已送出！共 ${r.rest_count} 人，廣播 ID: ${r.rest_broadcast_id}`, 'ok');
+    load();
+    await refreshResult(id);
+  } else {
+    show(r.error || '送出失敗', 'err');
+  }
+};
+
+// ─── 初始載入 ───
+load();
+</script>
+</body>
+</html>

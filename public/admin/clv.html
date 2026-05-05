@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧客生命週期 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .card h2 { margin: 0 0 16px; font-size: 16px; color: #1a1a2e; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 768px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { border-radius: 12px; padding: 16px; text-align: center; }
+  .kpi.new     { background: #e0f2fe; }
+  .kpi.active  { background: #dcfce7; }
+  .kpi.vip     { background: #fef3c7; }
+  .kpi.at_risk { background: #fef9c3; }
+  .kpi.lost    { background: #fee2e2; }
+  .kpi-val { font-size: 30px; font-weight: 700; }
+  .kpi.new .kpi-val     { color: #0369a1; }
+  .kpi.active .kpi-val  { color: #15803d; }
+  .kpi.vip .kpi-val     { color: #92400e; }
+  .kpi.at_risk .kpi-val { color: #854d0e; }
+  .kpi.lost .kpi-val    { color: #b91c1c; }
+  .kpi-lbl { font-size: 12px; color: #555; margin-top: 4px; font-weight: 500; }
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .filter-btn { padding: 6px 16px; border-radius: 99px; border: 1.5px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .filter-btn.active { background: #5856d6; color: #fff; border-color: #5856d6; }
+  .filter-btn.new     { border-color: #0369a1; }
+  .filter-btn.new.active { background: #0369a1; }
+  .filter-btn.active-stage  { border-color: #15803d; }
+  .filter-btn.active-stage.active { background: #15803d; }
+  .filter-btn.vip     { border-color: #92400e; }
+  .filter-btn.vip.active { background: #92400e; }
+  .filter-btn.at_risk { border-color: #854d0e; }
+  .filter-btn.at_risk.active { background: #854d0e; }
+  .filter-btn.lost    { border-color: #b91c1c; }
+  .filter-btn.lost.active { background: #b91c1c; }
+  .search-input { padding: 6px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 13px; width: 200px; outline: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { color: #666; font-weight: 500; }
+  tr:hover td { background: #fafafa; }
+  .avatar-sm { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .customer-cell { display: flex; align-items: center; gap: 10px; }
+  .lifecycle-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .lifecycle-badge.new      { background: #e0f2fe; color: #0369a1; }
+  .lifecycle-badge.active   { background: #dcfce7; color: #15803d; }
+  .lifecycle-badge.vip      { background: #fef3c7; color: #92400e; }
+  .lifecycle-badge.at_risk  { background: #fef9c3; color: #854d0e; }
+  .lifecycle-badge.lost     { background: #fee2e2; color: #b91c1c; }
+  .rfm-bar { display: flex; gap: 2px; height: 14px; width: 80px; }
+  .rfm-seg { height: 100%; border-radius: 2px; }
+  .rfm-seg.r { background: #5856d6; }
+  .rfm-seg.f { background: #16a34a; }
+  .rfm-seg.m { background: #f59e0b; }
+  .btn { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-primary { background: #5856d6; color: #fff; }
+  .btn-primary:hover { background: #4342c0; }
+  .tag-chip { display: inline-block; background: #f0f0ff; color: #5856d6; border-radius: 99px; padding: 1px 7px; font-size: 11px; margin: 1px; }
+  .pie-wrap { display: flex; align-items: center; gap: 20px; }
+  .pie { position: relative; width: 120px; height: 120px; }
+  canvas { position: absolute; top: 0; left: 0; }
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pagination { display: flex; gap: 4px; align-items: center; margin-top: 12px; }
+  .pagination button { padding: 4px 10px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; }
+  .pagination button.active { background: #5856d6; color: #fff; border-color: #5856d6; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+  .loading { color: #aaa; font-size: 13px; padding: 20px; }
+</style>
+</head>
+<body>
+<div class="topnav">
+  <span class="brand">客服中心</span>
+  <a href="/">對話</a>
+  <a href="/dashboard.html">儀表板</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin/auto-reply.html">AI 自動回覆</a>
+  <a href="/admin/clv.html" class="active">顧客分群</a>
+  <a href="/admin.html">設定</a>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">載入中...</div>
+
+  <!-- KPI + 圓餅圖 -->
+  <div class="card" id="kpi-card" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;">顧客生命週期分布</h2>
+      <div>
+        <button class="btn btn-primary" onclick="recompute()">重新計算</button>
+        <span id="recompute-msg" style="margin-left:10px;font-size:12px;color:#16a34a;display:none;">重算完成</span>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi new">     <div class="kpi-val" id="kpi-new">—</div>     <div class="kpi-lbl">新客</div></div>
+      <div class="kpi active">  <div class="kpi-val" id="kpi-active">—</div>  <div class="kpi-lbl">活躍</div></div>
+      <div class="kpi vip">     <div class="kpi-val" id="kpi-vip">—</div>     <div class="kpi-lbl">VIP</div></div>
+      <div class="kpi at_risk"> <div class="kpi-val" id="kpi-at_risk">—</div> <div class="kpi-lbl">流失預警</div></div>
+      <div class="kpi lost">    <div class="kpi-val" id="kpi-lost">—</div>    <div class="kpi-lbl">流失</div></div>
+    </div>
+    <!-- 純 CSS 圓餅（canvas）-->
+    <div class="pie-wrap">
+      <div class="pie"><canvas id="pie-canvas" width="120" height="120"></canvas></div>
+      <div class="legend" id="pie-legend"></div>
+    </div>
+  </div>
+
+  <!-- 顧客列表 -->
+  <div class="card" id="list-card" style="display:none;">
+    <div class="filter-bar">
+      <button class="filter-btn active" data-stage="" onclick="setStage(this, '')">全部</button>
+      <button class="filter-btn new" data-stage="new" onclick="setStage(this, 'new')">新客</button>
+      <button class="filter-btn active-stage" data-stage="active" onclick="setStage(this, 'active')">活躍</button>
+      <button class="filter-btn vip" data-stage="vip" onclick="setStage(this, 'vip')">VIP</button>
+      <button class="filter-btn at_risk" data-stage="at_risk" onclick="setStage(this, 'at_risk')">流失預警</button>
+      <button class="filter-btn lost" data-stage="lost" onclick="setStage(this, 'lost')">流失</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>顧客</th>
+          <th>階段</th>
+          <th>最近互動</th>
+          <th>訊息數</th>
+          <th>訂單數</th>
+          <th>總消費</th>
+          <th>RFM</th>
+          <th>標籤</th>
+        </tr>
+      </thead>
+      <tbody id="cust-tbody"><tr><td colspan="8" style="color:#aaa;text-align:center;">載入中...</td></tr></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const getCsrfToken = () => {
+  const m = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='));
+  return m ? m.slice(8) : '';
+};
+const api = async (method, path, body) => {
+  const r = await fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json', 'x-csrf-token': getCsrfToken() },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('未登入'); }
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || `HTTP ${r.status}`); }
+  return r.json();
+};
+
+const fmtTime = (ms) => {
+  if (!ms) return '—';
+  const days = Math.floor((Date.now() - ms) / 86400000);
+  if (days === 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days < 7)  return `${days} 天前`;
+  return new Date(ms).toLocaleDateString('zh-TW');
+};
+
+const STAGE_LABEL = { new: '新客', active: '活躍', vip: 'VIP', at_risk: '流失預警', lost: '流失' };
+const STAGE_COLORS = {
+  new: '#7dd3fc', active: '#86efac', vip: '#fcd34d', at_risk: '#fde68a', lost: '#fca5a5'
+};
+const AVATAR_COLORS = ['#06C755','#1976D2','#E53935','#F57C00','#7B1FA2','#00838F'];
+const getColor = (name) => {
+  let h = 0;
+  for (let i = 0; i < (name||'').length; i++) h = (h*31 + name.charCodeAt(i)) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+};
+const getInitial = (name) => (name||'?').replace(/[^一-龥a-zA-Z0-9]/g,'').charAt(0) || '?';
+
+let clientId = null;
+let currentStage = '';
+let currentPage = 0;
+const PAGE_SIZE = 30;
+
+const setStage = (el, stage) => {
+  $$('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentStage = stage;
+  currentPage = 0;
+  loadCustomers();
+};
+
+const drawPie = (data) => {
+  const canvas = $('#pie-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const total = Object.values(data).reduce((a,b) => a+b, 0) || 1;
+  const stages = ['new','active','vip','at_risk','lost'];
+  let startAngle = -Math.PI / 2;
+  ctx.clearRect(0, 0, 120, 120);
+  for (const s of stages) {
+    const v = data[s] || 0;
+    if (!v) continue;
+    const angle = (v / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(60, 60);
+    ctx.arc(60, 60, 54, startAngle, startAngle + angle);
+    ctx.closePath();
+    ctx.fillStyle = STAGE_COLORS[s];
+    ctx.fill();
+    startAngle += angle;
+  }
+  // 中心白圓
+  ctx.beginPath();
+  ctx.arc(60, 60, 32, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  // 中心文字
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillText(total, 60, 65);
+
+  const legend = $('#pie-legend');
+  legend.innerHTML = stages.map(s =>
+    data[s] > 0 ? `<div class="legend-item"><div class="legend-dot" style="background:${STAGE_COLORS[s]}"></div>${STAGE_LABEL[s]}：${data[s]}</div>` : ''
+  ).join('');
+};
+
+const loadOverview = async () => {
+  const d = await api('GET', `/api/clv/overview?client_id=${clientId}`);
+  $('#kpi-new').textContent    = d.new;
+  $('#kpi-active').textContent = d.active;
+  $('#kpi-vip').textContent    = d.vip;
+  $('#kpi-at_risk').textContent= d.at_risk;
+  $('#kpi-lost').textContent   = d.lost;
+  drawPie(d);
+};
+
+const loadCustomers = async () => {
+  const tbody = $('#cust-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="color:#aaa;text-align:center;">載入中...</td></tr>';
+  const qs = `client_id=${clientId}${currentStage ? '&stage=' + currentStage : ''}&limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+  const d = await api('GET', `/api/clv/customers?${qs}`);
+  const custs = d.customers || [];
+  if (!custs.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#aaa;text-align:center;">沒有符合的顧客</td></tr>';
+    $('#pagination').innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = custs.map(c => {
+    const name  = c.channel_display_name || c.name || '未知顧客';
+    const color = getColor(name);
+    const init  = getInitial(name);
+    const stage = c.lifecycle_stage || 'new';
+    const tags  = (() => { try { return JSON.parse(c.tags || '[]'); } catch { return []; } })();
+
+    // RFM 視覺化（簡單三段 bar）
+    const now = Date.now();
+    const recencyDays = c.last_active_at ? Math.floor((now - c.last_active_at) / 86400000) : 99;
+    const rScore = Math.max(0, Math.min(100, Math.round((1 - recencyDays/90) * 100)));
+    const fScore = Math.min(100, (c.total_messages || 0) * 5 + (c.total_orders || 0) * 10);
+    const mScore = Math.min(100, ((c.total_spent || 0) / 10000) * 100);
+
+    return `<tr>
+      <td>
+        <div class="customer-cell">
+          <div class="avatar-sm" style="background:${color};">${esc(init)}</div>
+          <div>
+            <div style="font-weight:600;">${esc(name)}</div>
+            <div style="font-size:11px;color:#aaa;">${esc(c.channel || '')}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="lifecycle-badge ${stage}">${STAGE_LABEL[stage] || stage}</span></td>
+      <td>${fmtTime(c.last_active_at)}</td>
+      <td>${c.total_messages || 0}</td>
+      <td>${c.total_orders || 0}</td>
+      <td>${c.total_spent ? 'NT$' + (+c.total_spent).toLocaleString() : '—'}</td>
+      <td>
+        <div class="rfm-bar" title="R:${rScore} F:${fScore} M:${mScore}">
+          <div class="rfm-seg r" style="width:${rScore/3}px;" title="近期互動"></div>
+          <div class="rfm-seg f" style="width:${fScore/3}px;" title="頻率"></div>
+          <div class="rfm-seg m" style="width:${mScore/3}px;" title="消費金額"></div>
+        </div>
+      </td>
+      <td>${tags.slice(0,3).map(t => `<span class="tag-chip">${esc(t)}</span>`).join('')}${tags.length > 3 ? `<span style="font-size:11px;color:#aaa;">+${tags.length-3}</span>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  // 分頁
+  const hasPrev = currentPage > 0;
+  const hasNext = custs.length === PAGE_SIZE;
+  $('#pagination').innerHTML = `
+    <button onclick="currentPage--;loadCustomers()" ${hasPrev ? '' : 'disabled'}>上一頁</button>
+    <span style="font-size:12px;color:#666;padding:0 8px;">第 ${currentPage+1} 頁</span>
+    <button onclick="currentPage++;loadCustomers()" ${hasNext ? '' : 'disabled'}>下一頁</button>
+  `;
+};
+
+const recompute = async () => {
+  const btn = document.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = '計算中...';
+  try {
+    await api('POST', `/api/clv/recompute`, { client_id: clientId });
+    const msg = $('#recompute-msg');
+    msg.style.display = '';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    await loadOverview();
+    await loadCustomers();
+  } catch (e) {
+    alert('重算失敗：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '重新計算';
+  }
+};
+
+(async () => {
+  try {
+    const me = await api('GET', '/api/me');
+    if (me.client_id) {
+      clientId = me.client_id;
+    } else {
+      const clients = await api('GET', '/api/clients');
+      clientId = clients.clients?.[0]?.id ?? null;
+    }
+    if (!clientId) { $('#loading').textContent = '無法取得業主 ID'; return; }
+    $('#loading').style.display = 'none';
+    $('#kpi-card').style.display = '';
+    $('#list-card').style.display = '';
+    await loadOverview();
+    await loadCustomers();
+  } catch (e) {
+    $('#loading').textContent = '載入失敗：' + e.message;
+  }
+})();
+</script>
+</body>
+</html>

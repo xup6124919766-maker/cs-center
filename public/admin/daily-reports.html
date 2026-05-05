@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <title>每日報表 — 客服中心</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <style>
+    body { overflow: auto; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .btn { padding: 6px 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-primary { background: var(--primary,#1976d2); color: #fff; }
+    .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 16px; font-size: 11px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 10px 16px; border-bottom: 1px solid var(--border-light,#f0f0f0); }
+    tr.report-row:hover td { background: var(--bg); cursor: pointer; }
+    .expand-row { display: none; }
+    .expand-row.open { display: table-row; }
+    .expand-content { padding: 16px 20px; background: var(--bg); }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; margin-bottom: 16px; }
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+    .detail-card-title { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-bottom: 6px; }
+    .detail-card-value { font-size: 22px; font-weight: 700; }
+    .detail-card-sub { font-size: 11px; color: var(--text-sub); }
+    .section-title { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+    .sub-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .sub-table th { padding: 5px 8px; background: var(--border); font-weight: 600; }
+    .sub-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-light,#f0f0f0); }
+    .chevron { display: inline-block; transition: transform 0.2s; }
+    .open .chevron { transform: rotate(90deg); }
+    @media print {
+      .toolbar, .btn, nav { display: none !important; }
+      .expand-row { display: table-row !important; }
+      body, .wrap { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav"></nav>
+<div class="wrap">
+  <div class="page-title">每日報表</div>
+  <div class="page-sub">各業主每日指標匯總，含訊息、AI、廣播、計費、安全、系統</div>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="generateBtn" onclick="generateReport()">立即生成昨日報表</button>
+    <button class="btn btn-secondary" onclick="window.print()">匯出 PDF</button>
+  </div>
+
+  <table id="reportsTable">
+    <thead><tr>
+      <th></th><th>日期</th><th>業主</th><th>訊息數</th><th>新對話</th><th>AI 費用</th><th>計費則數</th><th>安全事件</th>
+    </tr></thead>
+    <tbody id="reportsTbody"><tr><td colspan="8">載入中...</td></tr></tbody>
+  </table>
+</div>
+<script src="/admin.js"></script>
+<script>
+let reports = [];
+let clients = {};
+let openRows = new Set();
+
+const getCSRF = () => document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='))?.split('=')[1] || '';
+
+async function init() {
+  const [rData, cData] = await Promise.all([
+    fetch('/api/daily-reports').then(r => r.json()).catch(() => ({ reports: [] })),
+    fetch('/api/clients').then(r => r.json()).catch(() => ({ clients: [] })),
+  ]);
+  reports = rData.reports || [];
+  (cData.clients || []).forEach(c => { clients[c.id] = c.display_name; });
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('reportsTbody');
+  if (!reports.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">無報表資料</td></tr>'; return; }
+
+  tbody.innerHTML = reports.map((r, i) => `
+    <tr class="report-row" onclick="toggleExpand(${i})">
+      <td><span class="chevron" id="ch${i}">&#9658;</span></td>
+      <td>${r.report_date}</td>
+      <td>${clients[r.client_id] || `#${r.client_id}`}</td>
+      <td id="msgs${i}">...</td>
+      <td id="convs${i}">...</td>
+      <td id="ai${i}">...</td>
+      <td id="billing${i}">...</td>
+      <td id="sec${i}">...</td>
+    </tr>
+    <tr class="expand-row" id="exp${i}">
+      <td colspan="8"><div class="expand-content" id="expContent${i}">載入中...</div></td>
+    </tr>
+  `).join('');
+
+  // 載入每筆摘要
+  reports.forEach((r, i) => loadReportSummary(r.id, i));
+}
+
+async function loadReportSummary(id, idx) {
+  const data = await fetch(`/api/daily-reports/${id}`).then(r => r.json()).catch(() => ({}));
+  const d = data.data || {};
+  document.getElementById(`msgs${idx}`).textContent     = d.total_messages ?? '-';
+  document.getElementById(`convs${idx}`).textContent    = d.new_conversations ?? '-';
+  document.getElementById(`ai${idx}`).textContent       = d.ai_cost_usd ? `$${Number(d.ai_cost_usd).toFixed(4)}` : '$0';
+  document.getElementById(`billing${idx}`).textContent  = d.billing_push_units ?? '-';
+  document.getElementById(`sec${idx}`).textContent      = d.security_critical ?? '-';
+}
+
+async function toggleExpand(idx) {
+  const expRow  = document.getElementById(`exp${idx}`);
+  const chevron = document.getElementById(`ch${idx}`);
+  if (openRows.has(idx)) {
+    openRows.delete(idx);
+    expRow.classList.remove('open');
+    chevron.classList.remove('open');
+  } else {
+    openRows.add(idx);
+    expRow.classList.add('open');
+    chevron.classList.add('open');
+    await renderExpand(reports[idx].id, idx);
+  }
+}
+
+async function renderExpand(id, idx) {
+  const data = await fetch(`/api/daily-reports/${id}`).then(r => r.json()).catch(() => ({}));
+  const d = data.data || {};
+  const c = document.getElementById(`expContent${idx}`);
+
+  const agentRows = (d.agent_performance || []).map(a =>
+    `<tr><td>${a.user_id}</td><td>${a.msg_count}</td></tr>`
+  ).join('') || '<tr><td colspan="2">無資料</td></tr>';
+
+  const slowRows = (d.slow_endpoints_top5 || []).map(s =>
+    `<tr><td>${s.path}</td><td>${Math.round(s.avg_ms)}ms</td><td>${s.cnt}</td></tr>`
+  ).join('') || '<tr><td colspan="3">無慢 endpoint</td></tr>';
+
+  const schedRows = (d.scheduler_errors || []).map(s =>
+    `<tr><td>${s.scheduler_name}</td><td>${s.fail_count}</td></tr>`
+  ).join('') || '<tr><td colspan="2">無失敗</td></tr>';
+
+  c.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-card"><div class="detail-card-title">總訊息</div><div class="detail-card-value">${d.total_messages ?? 0}</div><div class="detail-card-sub">其中 Inbound ${d.inbound_messages ?? 0}</div></div>
+      <div class="detail-card"><div class="detail-card-title">新對話</div><div class="detail-card-value">${d.new_conversations ?? 0}</div><div class="detail-card-sub">結案 ${d.closed_conversations ?? 0}</div></div>
+      <div class="detail-card"><div class="detail-card-title">CSAT 均分</div><div class="detail-card-value">${d.csat_avg ?? '-'}</div><div class="detail-card-sub">${d.csat_count ?? 0} 則回饋</div></div>
+      <div class="detail-card"><div class="detail-card-title">AI 費用</div><div class="detail-card-value">$${Number(d.ai_cost_usd ?? 0).toFixed(4)}</div><div class="detail-card-sub">In ${d.ai_input_tokens ?? 0} / Out ${d.ai_output_tokens ?? 0} tokens</div></div>
+      <div class="detail-card"><div class="detail-card-title">廣播發送</div><div class="detail-card-value">${d.broadcasts_sent ?? 0}</div><div class="detail-card-sub">共 ${d.broadcast_total_recipients ?? 0} 人次</div></div>
+      <div class="detail-card"><div class="detail-card-title">計費則數</div><div class="detail-card-value">${d.billing_push_units ?? 0}</div><div class="detail-card-sub">Push ${d.billing_push_count ?? 0} / 廣播 ${d.billing_broadcast_count ?? 0}</div></div>
+      <div class="detail-card"><div class="detail-card-title">安全事件</div><div class="detail-card-value" style="${(d.security_critical ?? 0) > 0 ? 'color:#c62828' : ''}">${d.security_critical ?? 0} 個 Critical</div><div class="detail-card-sub">登入失敗 ${d.login_fail_count ?? 0}</div></div>
+    </div>
+    <div class="section-title">客服績效</div>
+    <table class="sub-table"><thead><tr><th>User ID</th><th>發出訊息</th></tr></thead><tbody>${agentRows}</tbody></table>
+    <div class="section-title">慢 Endpoint Top 5</div>
+    <table class="sub-table"><thead><tr><th>路徑</th><th>平均耗時</th><th>次數</th></tr></thead><tbody>${slowRows}</tbody></table>
+    <div class="section-title">排程任務失敗</div>
+    <table class="sub-table"><thead><tr><th>排程名稱</th><th>失敗次數</th></tr></thead><tbody>${schedRows}</tbody></table>
+  `;
+}
+
+async function generateReport() {
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true; btn.textContent = '生成中...';
+  const r = await fetch('/api/daily-reports/generate', {
+    method: 'POST',
+    headers: { 'x-csrf-token': getCSRF() }
+  }).then(r => r.json()).catch(() => ({}));
+  btn.disabled = false; btn.textContent = '立即生成昨日報表';
+  if (r.ok) { alert('報表生成完成'); await init(); }
+  else alert(r.error || '生成失敗');
+}
+
+init();
+</script>
+</body>
+</html>
