@@ -8,23 +8,36 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').then(reg => {
       console.log('[PWA] SW 註冊成功, scope:', reg.scope);
 
+      // 每分鐘主動檢查 sw.js 是否有新版（不再只靠瀏覽器自動 check）
+      setInterval(() => reg.update().catch(() => {}), 60_000);
+
       // 偵測新版本就緒
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // 新版 SW 已就緒，顯示更新提示
-            _showUpdateBanner(newWorker);
+            // 新版 SW 已就緒 → 直接 skipWaiting + reload（無感更新，不彈橫幅）
+            console.log('[PWA] 新版 SW 就緒，自動套用');
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
           }
         });
       });
     }).catch(e => console.warn('[PWA] SW 註冊失敗:', e));
 
-    // SW 控制切換後自動重載（讓新版 SW 生效）
+    // SW 接管後自動重載（讓新版 JS/CSS 生效）
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) { refreshing = true; location.reload(); }
+    });
+
+    // SW 廣播「已更新」訊息 → 自動重載
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data?.type === 'sw:updated' && !refreshing) {
+        refreshing = true;
+        console.log('[PWA] SW 通知更新，自動重載');
+        location.reload();
+      }
     });
   });
 }
