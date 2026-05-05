@@ -30,7 +30,7 @@ self.addEventListener('message', (e) => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// ─── 啟動：清除舊 cache，接管所有 client，並通知所有頁面重新載入 ───
+// ─── 啟動：清除舊 cache，接管所有 client（不主動廣播 reload，避免跳頁）───
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -43,11 +43,6 @@ self.addEventListener('activate', (e) => {
           })
       )
     ).then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then(clients => {
-        // 通知所有開著的頁面：新版 SW 已啟動，請重新載入
-        clients.forEach(c => c.postMessage({ type: 'sw:updated', version: CACHE_NAME }));
-      })
   );
 });
 
