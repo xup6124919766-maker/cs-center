@@ -2,202 +2,516 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>中獎排行榜</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>女神排行榜 — 梵森</title>
+<link rel="stylesheet" href="/play/_shared.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); min-height: 100vh; padding: 20px; color: #fff; }
-  .container { max-width: 480px; margin: 0 auto; }
-  h1 { font-size: 26px; font-weight: 700; text-align: center; margin-bottom: 4px; }
-  .sub { text-align: center; color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 24px; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: rgba(255,255,255,0.1); border-radius: 12px; padding: 4px; }
-  .tab { flex: 1; padding: 10px; border-radius: 10px; text-align: center; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
-  .tab.active { background: rgba(255,255,255,0.2); }
-  /* 前三名 */
-  .top3 { display: flex; justify-content: center; align-items: flex-end; gap: 12px; margin-bottom: 24px; }
-  .top3-item { text-align: center; }
-  .top3-item.rank1 { order: 2; }
-  .top3-item.rank2 { order: 1; }
-  .top3-item.rank3 { order: 3; }
-  .podium { border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 32px; width: 70px; margin: 0 auto 6px; }
-  .top3-item.rank1 .podium { background: linear-gradient(135deg, #f7d154, #e67e22); height: 90px; font-size: 40px; }
-  .top3-item.rank2 .podium { background: linear-gradient(135deg, #b0b0b0, #888); height: 70px; }
-  .top3-item.rank3 .podium { background: linear-gradient(135deg, #cd7f32, #a0522d); height: 60px; }
-  .top3-name { font-size: 13px; font-weight: 600; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .top3-count { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
-  .rank-badge { font-size: 16px; margin-bottom: 4px; }
-  /* 其餘排行 */
-  .list { display: flex; flex-direction: column; gap: 8px; }
-  .row { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-  .rank-no { font-size: 18px; font-weight: 700; width: 28px; text-align: center; color: rgba(255,255,255,0.5); }
-  .avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden; }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .info { flex: 1; min-width: 0; }
-  .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .detail { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
-  .wins { font-size: 16px; font-weight: 700; color: #f7d154; }
-  .empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.4); }
-  .activity-selector { margin-bottom: 16px; }
-  .activity-selector select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff; font-size: 14px; }
-  .activity-selector select option { background: #1a1a2e; color: #fff; }
+/* ── 排行榜專屬 ── */
+.leaderboard-page { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 40px; }
+
+/* 分頁 Tabs */
+.tabs-wrap {
+  padding: 0 20px;
+  margin-bottom: 20px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 4px;
+}
+.tab {
+  flex: 1;
+  padding: 9px 6px;
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text-dim);
+  transition: all 0.25s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tab.active {
+  background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(183,110,121,0.15));
+  border: 1px solid rgba(212,175,55,0.3);
+  color: var(--c-gold);
+}
+
+/* 前三名 Podium */
+.podium-section {
+  padding: 0 20px;
+  margin-bottom: 24px;
+}
+.podium-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+}
+
+/* 每個 podium 項 */
+.podium-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fade-in-up 0.5s ease both;
+}
+.podium-item:nth-child(1) { animation-delay: 0.1s; }
+.podium-item:nth-child(2) { animation-delay: 0s; }
+.podium-item:nth-child(3) { animation-delay: 0.2s; }
+
+/* 頭像 */
+.podium-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+.podium-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+/* 1st 大一點 */
+.rank1 .podium-avatar { width: 62px; height: 62px; font-size: 28px; }
+
+/* 名字 */
+.podium-name {
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.podium-score { font-size: 11px; color: var(--c-text-dim); text-align: center; margin-bottom: 8px; }
+
+/* 柱子 */
+.podium-pillar {
+  border-radius: 10px 10px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  width: 72px;
+  position: relative;
+  overflow: hidden;
+}
+.podium-pillar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  opacity: 0.6;
+}
+.rank1 .podium-pillar {
+  height: 96px;
+  background: linear-gradient(180deg, #D4AF37 0%, #8B6914 100%);
+  box-shadow: 0 0 20px rgba(212,175,55,0.5), 0 4px 16px rgba(0,0,0,0.4);
+}
+.rank1 .podium-pillar::before { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); }
+.rank2 .podium-pillar {
+  height: 72px;
+  background: linear-gradient(180deg, #B0B0B0 0%, #666 100%);
+  box-shadow: 0 0 12px rgba(176,176,176,0.3), 0 4px 12px rgba(0,0,0,0.4);
+}
+.rank3 .podium-pillar {
+  height: 56px;
+  background: linear-gradient(180deg, #CD7F32 0%, #7A4A1A 100%);
+  box-shadow: 0 0 10px rgba(205,127,50,0.3), 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* 排名數字 */
+.rank-no-badge {
+  font-size: 13px;
+  font-weight: 800;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.rank1 .rank-no-badge { background: var(--grad-gold); color: #1a1a2e; }
+.rank2 .rank-no-badge { background: var(--grad-silver); color: #1a1a2e; }
+.rank3 .rank-no-badge { background: linear-gradient(135deg, #CD7F32, #A0522D); color: #fff; }
+
+/* 火焰特效（第 1 名）*/
+.flame {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 28px;
+  animation: flame-flicker 0.8s ease-in-out infinite alternate;
+}
+@keyframes flame-flicker {
+  0%   { transform: translateX(-50%) scale(1) rotate(-3deg); opacity: 0.8; }
+  100% { transform: translateX(-50%) scale(1.15) rotate(3deg); opacity: 1; }
+}
+
+/* 4-10 名表格 */
+.list-section { padding: 0 20px; }
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+  animation: fade-in-up 0.4s ease both;
+}
+.rank-row:hover { background: rgba(255,255,255,0.07); }
+.rank-num {
+  font-size: 16px;
+  font-weight: 800;
+  width: 28px;
+  text-align: center;
+  color: var(--c-text-dim);
+}
+.rank-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.rank-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.rank-info { flex: 1; min-width: 0; }
+.rank-name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-detail { font-size: 11px; color: var(--c-text-dim); margin-top: 2px; }
+.rank-wins { font-size: 17px; font-weight: 800; color: var(--c-gold); }
+
+/* 空狀態 */
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--c-text-dim);
+}
+.empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state .empty-text { font-size: 14px; line-height: 1.6; }
+
+/* 自身排名（底部固定）*/
+.my-rank-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(26,26,46,0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(212,175,55,0.2);
+  padding: 12px 20px;
+  display: none;
+  z-index: 40;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.my-rank-bar.show { display: flex; align-items: center; gap: 12px; }
+.my-rank-label { font-size: 12px; color: var(--c-text-dim); }
+.my-rank-num { font-size: 20px; font-weight: 800; color: var(--c-gold); }
+
+/* 活動選擇器 */
+.activity-selector {
+  padding: 0 20px;
+  margin-bottom: 16px;
+}
+.activity-selector select {
+  width: 100%;
+  padding: 11px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-family: var(--font-body);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23D4AF37' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+.activity-selector select option { background: #1a1a2e; color: #fff; }
+
+/* 更新指示 */
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--c-text-dim);
+  padding: 4px 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 20px;
+  margin: 8px auto 16px;
+  display: flex;
+  justify-content: center;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+.update-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #50c878;
+  animation: pulse-dot 2s ease infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
 </style>
 </head>
-<body>
-<div class="container">
-  <h1>中獎排行榜</h1>
-  <div class="sub">看看誰是最幸運的人！</div>
+<body class="faisem-game">
+<div class="leaderboard-page">
 
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('global', this)">全店排行</div>
-    <div class="tab" onclick="switchTab('activity', this)">活動排行</div>
+  <div class="game-topbar">
+    <a href="/play/index.html" style="color:var(--c-text-dim);text-decoration:none;font-size:13px;">← 所有遊戲</a>
+    <span class="logo">梵森女神</span>
+    <span style="font-size:12px;color:var(--c-text-dim);">排行榜</span>
   </div>
 
-  <div id="globalTab">
-    <div id="globalList" class="list"></div>
+  <div class="game-header">
+    <h1>女神排行榜</h1>
+    <div class="sub">看看誰是最幸運的女神使者</div>
   </div>
 
-  <div id="activityTab" style="display:none">
+  <!-- 自動更新提示 -->
+  <div class="update-badge">
+    <div class="update-dot"></div>
+    每 30 秒自動更新
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-wrap">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('global', this)">全店排行</div>
+      <div class="tab" onclick="switchTab('activity', this)">活動排行</div>
+    </div>
+  </div>
+
+  <!-- 全店排行 -->
+  <div id="globalPanel">
+    <div class="podium-section" id="podiumSection"></div>
+    <div class="list-section" id="globalList"></div>
+  </div>
+
+  <!-- 活動排行 -->
+  <div id="activityPanel" style="display:none">
     <div class="activity-selector">
       <select id="actSelect" onchange="loadActivityLeaderboard()">
-        <option value="">-- 選擇活動 --</option>
+        <option value="">請選擇活動</option>
       </select>
     </div>
-    <div id="activityList" class="list"></div>
+    <div class="podium-section" id="actPodiumSection"></div>
+    <div class="list-section" id="activityList"></div>
   </div>
+
 </div>
 
-<script>
-const params = new URLSearchParams(location.search);
+<script type="module">
+import { esc } from '/play/_shared.js';
+
+const params   = new URLSearchParams(location.search);
 const clientId = params.get('client_id') || '1';
+let   currentTab = 'global';
+let   pollingTimer = null;
 
-const switchTab = (tab, el) => {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('globalTab').style.display = tab === 'global' ? '' : 'none';
-  document.getElementById('activityTab').style.display = tab === 'activity' ? '' : 'none';
-  if (tab === 'activity') loadActivities();
-};
-
-const renderAvatar = (row) => {
-  if (row.avatar_url) return `<img src="${row.avatar_url}" onerror="this.style.display='none';this.parentElement.textContent='👤'" alt="">`;
+// ── 渲染頭像 ──
+const avatarHtml = (row) => {
+  if (row?.avatar_url) return `<img src="${esc(row.avatar_url)}" onerror="this.style.display='none'" alt="">`;
   return '👤';
 };
 
-const renderTop3 = (list, container, keyWins, keyName) => {
-  const top3 = list.slice(0, 3);
-  if (top3.length < 1) return;
-  const items = [
-    top3[0] ? `<div class="top3-item rank1"><div class="rank-badge">1</div><div class="podium">${renderAvatar(top3[0])}</div><div class="top3-name">${esc(top3[0][keyName] || '匿名')}</div><div class="top3-count">${top3[0][keyWins]} 次</div></div>` : '',
-    top3[1] ? `<div class="top3-item rank2"><div class="rank-badge">2</div><div class="podium" style="font-size:28px">${renderAvatar(top3[1])}</div><div class="top3-name">${esc(top3[1][keyName] || '匿名')}</div><div class="top3-count">${top3[1][keyWins]} 次</div></div>` : '',
-    top3[2] ? `<div class="top3-item rank3"><div class="rank-badge">3</div><div class="podium" style="font-size:24px">${renderAvatar(top3[2])}</div><div class="top3-name">${esc(top3[2][keyName] || '匿名')}</div><div class="top3-count">${top3[2][keyWins]} 次</div></div>` : '',
-  ];
-  container.innerHTML = `<div class="top3">${items.join('')}</div>`;
-};
-
-const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-const ts2label = (ts) => {
+// ── 時間標籤 ──
+const timeLabel = (ts) => {
   if (!ts) return '';
   const d = Math.floor((Date.now() - ts) / 86400000);
   return d === 0 ? '今天' : `${d} 天前`;
 };
 
+// ── 前三名 Podium ──
+const renderPodium = (list, container) => {
+  if (!list.length) { container.innerHTML = ''; return; }
+  const top3 = list.slice(0, 3);
+
+  // 順序：2nd / 1st / 3rd
+  const slots  = [top3[1], top3[0], top3[2]];
+  const ranks  = [2, 1, 3];
+  const scores = (row) => row?.total_wins != null ? `${row.total_wins} 次中獎` : '';
+
+  let html = '<div class="podium-wrap">';
+  slots.forEach((item, i) => {
+    if (!item) { html += '<div style="flex:1"></div>'; return; }
+    const rank = ranks[i];
+    const name = item.customer_name || item.channel_user_id || '匿名';
+    html += `
+    <div class="podium-item rank${rank}">
+      <div class="rank-no-badge">${rank}</div>
+      <div class="podium-avatar" style="border-color:${rank===1?'rgba(212,175,55,0.6)':rank===2?'rgba(176,176,176,0.5)':'rgba(205,127,50,0.5)'}">
+        ${avatarHtml(item)}
+      </div>
+      <div class="podium-name">${esc(name)}</div>
+      <div class="podium-score">${scores(item)}</div>
+      <div class="podium-pillar" style="position:relative">
+        ${rank === 1 ? '<div class="flame">🔥</div>' : ''}
+        ${rank===1?'🥇':rank===2?'🥈':'🥉'}
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+};
+
+// ── 4-10 名列表 ──
+const renderList = (list, container, startIdx = 3) => {
+  if (!list.length) { container.innerHTML = ''; return; }
+  const rows = list.slice(startIdx);
+  if (!rows.length) { container.innerHTML = ''; return; }
+
+  container.innerHTML = rows.map((item, idx) => `
+    <div class="rank-row" style="animation-delay:${(idx * 0.05).toFixed(2)}s">
+      <div class="rank-num">${startIdx + idx + 1}</div>
+      <div class="rank-avatar">${avatarHtml(item)}</div>
+      <div class="rank-info">
+        <div class="rank-name">${esc(item.customer_name || item.channel_user_id || '匿名')}</div>
+        <div class="rank-detail">${item.activities_count != null ? `參與 ${item.activities_count} 場 · ` : ''}${timeLabel(item.last_win_at || item.created_at)}</div>
+      </div>
+      <div class="rank-wins">${item.total_wins != null ? item.total_wins : ''}</div>
+    </div>
+  `).join('');
+};
+
+// ── 空狀態 ──
+const emptyState = (msg = '尚無紀錄') => `
+  <div class="empty-state">
+    <div class="empty-icon">✨</div>
+    <div class="empty-text">${msg}<br>成為第一個女神使者吧！</div>
+  </div>
+`;
+
+// ── 全店排行 ──
 const loadGlobal = async () => {
-  const container = document.getElementById('globalList');
-  container.innerHTML = '<div class="empty">載入中…</div>';
+  const podium = document.getElementById('podiumSection');
+  const list   = document.getElementById('globalList');
+  podium.innerHTML = '<div style="text-align:center;padding:30px;"><div class="loading-ring"></div></div>';
+  list.innerHTML   = '';
+
   try {
-    const r = await fetch(`/api/play/leaderboard/global?client_id=${clientId}&limit=20`);
+    const r    = await fetch(`/api/play/leaderboard/global?client_id=${clientId}&limit=20`);
     const data = await r.json();
-    const list = data.leaderboard || [];
-    if (!list.length) { container.innerHTML = '<div class="empty">尚無中獎紀錄</div>'; return; }
-
-    let html = '';
-    if (list.length >= 1) {
-      // Top 3 podium
-      const top3 = list.slice(0, 3);
-      html += '<div class="top3">';
-      const orders = [top3[1], top3[0], top3[2]];
-      const ranks = [2, 1, 3];
-      const heights = ['70px','90px','60px'];
-      const sizes = ['28px','40px','24px'];
-      orders.forEach((item, i) => {
-        if (!item) return;
-        html += `<div class="top3-item rank${ranks[i]}">
-          <div class="rank-badge">${ranks[i]}</div>
-          <div class="podium" style="height:${heights[i]};font-size:${sizes[i]}">${renderAvatar(item)}</div>
-          <div class="top3-name">${esc(item.customer_name || '匿名')}</div>
-          <div class="top3-count">${item.total_wins} 次中獎</div>
-        </div>`;
-      });
-      html += '</div>';
+    const lb   = data.leaderboard || [];
+    if (!lb.length) {
+      podium.innerHTML = '';
+      list.innerHTML   = emptyState('尚無中獎紀錄');
+      return;
     }
-
-    // 4名以後
-    list.slice(3).forEach((item, idx) => {
-      html += `<div class="row">
-        <div class="rank-no">${idx + 4}</div>
-        <div class="avatar">${renderAvatar(item)}</div>
-        <div class="info">
-          <div class="name">${esc(item.customer_name || '匿名')}</div>
-          <div class="detail">參與 ${item.activities_count} 場活動 · 最近 ${ts2label(item.last_win_at)}</div>
-        </div>
-        <div class="wins">${item.total_wins}</div>
-      </div>`;
-    });
-
-    container.innerHTML = html;
-  } catch (e) {
-    container.innerHTML = '<div class="empty">載入失敗</div>';
+    renderPodium(lb, podium);
+    renderList(lb, list, 3);
+  } catch {
+    podium.innerHTML = '';
+    list.innerHTML   = emptyState('載入失敗，請稍後再試');
   }
 };
 
+// ── 活動列表 ──
 const loadActivities = async () => {
   try {
-    const r = await fetch(`/api/games?client_id=${clientId}`);
+    const r    = await fetch(`/api/games?client_id=${clientId}`);
     const data = await r.json();
-    const sel = document.getElementById('actSelect');
-    const current = sel.value;
-    sel.innerHTML = '<option value="">-- 選擇活動 --</option>';
+    const sel  = document.getElementById('actSelect');
+    const cur  = sel.value;
+    sel.innerHTML = '<option value="">請選擇活動</option>';
     (data.activities || []).forEach(a => {
       const opt = document.createElement('option');
-      opt.value = a.id;
+      opt.value   = a.id;
       opt.textContent = `${a.name} (${a.status})`;
-      if (String(a.id) === current) opt.selected = true;
+      if (String(a.id) === cur) opt.selected = true;
       sel.appendChild(opt);
     });
   } catch {}
 };
 
-const loadActivityLeaderboard = async () => {
-  const actId = document.getElementById('actSelect').value;
-  const container = document.getElementById('activityList');
-  if (!actId) { container.innerHTML = ''; return; }
-  container.innerHTML = '<div class="empty">載入中…</div>';
-  try {
-    const r = await fetch(`/api/play/leaderboard/${actId}?limit=20`);
-    const data = await r.json();
-    const list = data.leaderboard || [];
-    if (!list.length) { container.innerHTML = '<div class="empty">此活動尚無中獎紀錄</div>'; return; }
+// ── 活動排行 ──
+window.loadActivityLeaderboard = async () => {
+  const actId  = document.getElementById('actSelect').value;
+  const podium = document.getElementById('actPodiumSection');
+  const list   = document.getElementById('activityList');
+  if (!actId) { podium.innerHTML = ''; list.innerHTML = ''; return; }
 
-    let html = '';
-    list.forEach((item, idx) => {
-      const rankEmoji = idx === 0 ? '' : idx === 1 ? '' : idx === 2 ? '' : '';
-      html += `<div class="row">
-        <div class="rank-no">${idx < 3 ? rankEmoji || (idx+1) : idx+1}</div>
-        <div class="avatar">${renderAvatar(item)}</div>
-        <div class="info">
-          <div class="name">${esc(item.customer_name || item.channel_user_id || '匿名')}</div>
-          <div class="detail">${esc(item.prize_name || '—')} · ${ts2label(item.created_at)}</div>
-        </div>
-      </div>`;
-    });
-    container.innerHTML = html;
+  podium.innerHTML = '<div style="text-align:center;padding:30px;"><div class="loading-ring"></div></div>';
+  list.innerHTML   = '';
+
+  try {
+    const r    = await fetch(`/api/play/leaderboard/${actId}?limit=20`);
+    const data = await r.json();
+    const lb   = data.leaderboard || [];
+    if (!lb.length) {
+      podium.innerHTML = '';
+      list.innerHTML   = emptyState('此活動尚無中獎紀錄');
+      return;
+    }
+
+    // 活動排行只有列表（沒有 total_wins，用 index 順序）
+    const fakeWins = lb.map((item, i) => ({ ...item, total_wins: null, activities_count: null, last_win_at: item.created_at }));
+    if (lb.length >= 3) {
+      renderPodium(fakeWins.map((r, i) => ({ ...r, total_wins: lb.length - i })), podium);
+    } else {
+      podium.innerHTML = '';
+    }
+    renderList(fakeWins, list, Math.min(3, lb.length));
   } catch {
-    container.innerHTML = '<div class="empty">載入失敗</div>';
+    podium.innerHTML = '';
+    list.innerHTML   = emptyState('載入失敗');
   }
 };
 
+// ── Tab 切換 ──
+window.switchTab = (tab, el) => {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentTab = tab;
+  document.getElementById('globalPanel').style.display   = tab === 'global'   ? '' : 'none';
+  document.getElementById('activityPanel').style.display = tab === 'activity' ? '' : 'none';
+  if (tab === 'activity') loadActivities();
+  else loadGlobal();
+};
+
+// ── 輪詢（30s）──
+const startPolling = () => {
+  pollingTimer = setInterval(() => {
+    if (currentTab === 'global') loadGlobal();
+  }, 30000);
+};
+
+// ── 初始載入 ──
 loadGlobal();
+startPolling();
 </script>
 </body>
 </html>

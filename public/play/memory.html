@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>翻牌記憶 — 梵森</title>
+<link rel="stylesheet" href="/play/_shared.css">
+<style>
+/* ── 翻牌記憶專屬 ── */
+.memory-page { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 40px; }
+
+/* 狀態列 */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 16px;
+}
+.status-item { text-align: center; }
+.status-label { font-size: 11px; color: var(--c-text-dim); margin-bottom: 2px; }
+.status-val {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: "PingFang TC", "Noto Serif TC", serif;
+}
+.status-val.gold { color: var(--c-gold); }
+.status-val.rose { color: #E8B4A2; }
+
+/* 倒數計時 */
+.timer-val {
+  font-size: 28px;
+  font-weight: 900;
+  color: #fff;
+}
+.timer-val.urgent { color: #ff6b8a; animation: pulse-red 0.5s ease infinite; }
+
+/* 牌陣 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 0 16px;
+  margin-bottom: 20px;
+}
+
+/* 牌 */
+.card {
+  aspect-ratio: 3/4;
+  perspective: 600px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.card.flipped .card-inner,
+.card.matched .card-inner {
+  transform: rotateY(180deg);
+}
+
+/* 牌背 */
+.card-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2c1f3d 0%, #1e1535 50%, #1a1a2e 100%);
+  border: 1px solid rgba(212,175,55,0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 梵森 logo 浮雕 */
+.card-back::before {
+  content: '✦';
+  font-size: 28px;
+  color: rgba(212,175,55,0.25);
+  font-family: serif;
+}
+.card-back::after {
+  content: 'FAISEM';
+  font-size: 9px;
+  color: rgba(212,175,55,0.18);
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  position: absolute;
+  bottom: 10px;
+}
+/* 牌背格紋 */
+.card-back-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(212,175,55,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212,175,55,0.06) 1px, transparent 1px);
+  background-size: 12px 12px;
+  border-radius: 12px;
+}
+
+/* 牌面 */
+.card-front {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1e1235, #2c1f3d);
+  border: 1px solid rgba(212,175,55,0.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: rotateY(180deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 6px;
+}
+.card-face-icon { font-size: 32px; margin-bottom: 4px; }
+.card-face-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+/* 配對成功特效 */
+.card.matched .card-inner {
+  filter: drop-shadow(0 0 8px rgba(212,175,55,0.6));
+}
+.card.matched .card-front {
+  border-color: rgba(212,175,55,0.5);
+  background: linear-gradient(135deg, rgba(212,175,55,0.12), rgba(232,180,162,0.08), #1e1235);
+}
+
+/* 錯誤閃紅 */
+.card.wrong .card-front {
+  border-color: rgba(255,107,138,0.5);
+  animation: wrong-shake 0.4s ease;
+}
+@keyframes wrong-shake {
+  0%, 100% { transform: rotateY(180deg) translateX(0); }
+  25%       { transform: rotateY(180deg) translateX(-4px); }
+  75%       { transform: rotateY(180deg) translateX(4px); }
+}
+
+/* 遊戲提示 */
+.game-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--c-text-dim);
+  margin-bottom: 16px;
+  padding: 0 20px;
+  line-height: 1.5;
+}
+
+/* 進度條 */
+.match-progress {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 0 20px 16px;
+}
+.match-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.3s;
+}
+.match-dot.done {
+  background: var(--grad-gold);
+  box-shadow: 0 0 6px rgba(212,175,55,0.5);
+  border: none;
+}
+
+/* 開始/重玩按鈕 */
+.game-action { padding: 0 20px; }
+
+/* 結果覆蓋層 */
+.result-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.result-overlay.show { display: flex; animation: fadeInOverlay 0.3s ease; }
+
+.result-box {
+  background: linear-gradient(145deg, #1e1235, #16213e);
+  border: 1px solid rgba(212,175,55,0.4);
+  border-radius: 28px;
+  padding: 36px 28px;
+  text-align: center;
+  max-width: 340px;
+  width: 100%;
+  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.result-icon { font-size: 60px; margin-bottom: 12px; }
+.result-title {
+  font-size: 24px;
+  font-weight: 800;
+  font-family: "PingFang TC", "Noto Serif TC", serif;
+  margin-bottom: 8px;
+}
+.result-title.gold {
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.result-sub { font-size: 14px; color: var(--c-text-dim); line-height: 1.6; margin-bottom: 20px; }
+.result-matches {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--c-gold);
+  margin-bottom: 6px;
+}
+.result-matches-label { font-size: 13px; color: var(--c-text-dim); margin-bottom: 20px; }
+
+/* LINE ID 輸入（覆蓋在遊戲前）*/
+.pre-game {
+  padding: 0 20px 16px;
+}
+</style>
+</head>
+<body class="faisem-game">
+<div class="memory-page">
+
+  <div class="game-topbar">
+    <a href="/play/index.html" style="color:var(--c-text-dim);text-decoration:none;font-size:13px;">← 所有遊戲</a>
+    <span class="logo">梵森女神</span>
+    <span class="pts-badge" id="ptsBadge" style="display:none">✦ 0 點</span>
+  </div>
+
+  <div class="game-header">
+    <h1>翻牌記憶</h1>
+    <div class="sub">30 秒找出全部配對，解鎖女神祝福</div>
+  </div>
+
+  <!-- 開始前 -->
+  <div id="preGame" class="pre-game">
+    <input class="id-input" id="channelId" placeholder="LINE ID（選填）">
+    <button class="btn-gold" id="startBtn" onclick="startGame()">開始挑戰</button>
+    <div class="err-msg" id="errMsg"></div>
+  </div>
+
+  <!-- 遊戲中 -->
+  <div id="gameArea" style="display:none">
+
+    <!-- 狀態列 -->
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="status-label">配對</div>
+        <div class="status-val gold"><span id="matchCount">0</span>/6</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">倒數</div>
+        <div class="timer-val" id="timerDisplay">30</div>
+      </div>
+      <div class="status-item">
+        <div class="status-label">翻牌</div>
+        <div class="status-val rose" id="flipCount">0</div>
+      </div>
+    </div>
+
+    <!-- 配對進度 -->
+    <div class="match-progress" id="matchProgress"></div>
+
+    <!-- 牌陣 -->
+    <div class="card-grid" id="cardGrid"></div>
+
+    <div class="game-hint" id="gameHint">翻開兩張相同的牌完成配對</div>
+  </div>
+
+</div>
+
+<!-- 結果彈窗 -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-box">
+    <div class="result-icon" id="resultIcon">✨</div>
+    <div class="result-title" id="resultTitle">恭喜妳！</div>
+    <div class="result-matches" id="resultMatches">6</div>
+    <div class="result-matches-label">配對完成</div>
+    <div class="result-sub" id="resultSub"></div>
+    <div id="prizeInfo" style="display:none">
+      <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:8px" id="prizeNameEl"></div>
+      <div style="font-size:13px;color:var(--c-text-dim);margin-bottom:12px" id="prizeDescEl"></div>
+      <div class="win-coupon" id="prizeCouponEl" style="display:none"></div>
+    </div>
+    <div class="share-section" id="shareBtnsWrap" style="display:none">
+      <div class="share-hint">分享成績 獲得 20 點女神獎勵</div>
+      <div class="share-btns">
+        <button class="share-btn share-line" onclick="doShare('line')">LINE</button>
+        <button class="share-btn share-ig" onclick="doShare('ig')">IG</button>
+        <button class="share-btn share-fb" onclick="doShare('fb')">FB</button>
+      </div>
+    </div>
+    <button class="btn-gold" style="margin-top:16px" onclick="closeResult()">
+      <span id="resultBtnText">收下女神的禮物</span>
+    </button>
+  </div>
+</div>
+
+<script type="module">
+import { playSound, playWinSound, confetti, particleBurst, shareWin, openShareLink, vibrate, sleep } from '/play/_shared.js';
+
+const params = new URLSearchParams(location.search);
+const actId  = params.get('activity_id');
+let activityInfo = {};
+let lastParticipationId = null;
+
+// ── 梵森 5 款商品 + 女神圖（6對 = 12張）──
+const CARD_DATA = [
+  { id: 1, icon: '🌅', label: '晨光\nThe Twilight', color: '#D4AF37' },
+  { id: 2, icon: '🌿', label: '回聲\nThe Echo',    color: '#7ec8c8' },
+  { id: 3, icon: '🌹', label: '原罪\nThe Original Sin', color: '#B76E79' },
+  { id: 4, icon: '🍑', label: '白桃烏龍\n口噴香',   color: '#E8B4A2' },
+  { id: 5, icon: '🍋', label: '青柚\n口噴香',      color: '#c4d4a0' },
+  { id: 6, icon: '✨', label: '女神',             color: '#D4AF37' },
+];
+
+let cards        = [];   // 洗牌後的 24 張（12 * 2）
+let flippedCards = [];   // 目前翻開的牌索引
+let matchedPairs = 0;
+let flipCount    = 0;
+let lockBoard    = false;
+let timerSec     = 30;
+let timerInterval = null;
+let gameActive   = false;
+let drawDone     = false;
+let drawData     = null;
+
+// ── 洗牌 ──
+const shuffle = (arr) => {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
+// ── 初始化牌陣 ──
+const initCards = () => {
+  // 每種牌 2 張
+  cards = shuffle([...CARD_DATA, ...CARD_DATA].map((c, i) => ({ ...c, idx: i, matched: false })));
+  matchedPairs = 0;
+  flipCount    = 0;
+  flippedCards = [];
+  lockBoard    = false;
+  renderGrid();
+  renderProgress();
+  document.getElementById('matchCount').textContent = '0';
+  document.getElementById('flipCount').textContent  = '0';
+};
+
+// ── 渲染格子 ──
+const renderGrid = () => {
+  const grid = document.getElementById('cardGrid');
+  grid.innerHTML = '';
+  cards.forEach((card, i) => {
+    const el = document.createElement('div');
+    el.className    = 'card';
+    el.dataset.index = i;
+    el.innerHTML = `
+      <div class="card-inner">
+        <div class="card-back">
+          <div class="card-back-grid"></div>
+        </div>
+        <div class="card-front" style="border-color:rgba(${hexToRgb(card.color)},0.3)">
+          <div class="card-face-icon">${card.icon}</div>
+          <div class="card-face-label">${card.label}</div>
+        </div>
+      </div>
+    `;
+    el.addEventListener('click', () => flipCard(i));
+    grid.appendChild(el);
+  });
+};
+
+// ── 渲染進度點 ──
+const renderProgress = () => {
+  const bar = document.getElementById('matchProgress');
+  bar.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'match-dot' + (i < matchedPairs ? ' done' : '');
+    bar.appendChild(dot);
+  }
+};
+
+// ── hex to rgb 輔助 ──
+const hexToRgb = (hex) => {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+};
+
+// ── 翻牌 ──
+const flipCard = (idx) => {
+  if (!gameActive || lockBoard) return;
+  const card = cards[idx];
+  if (card.matched || flippedCards.includes(idx)) return;
+
+  const el = document.querySelector(`.card[data-index="${idx}"]`);
+  el.classList.add('flipped');
+  playSound('click');
+  vibrate([10]);
+  flippedCards.push(idx);
+  flipCount++;
+  document.getElementById('flipCount').textContent = flipCount;
+
+  if (flippedCards.length === 2) {
+    lockBoard = true;
+    checkMatch();
+  }
+};
+
+// ── 比對 ──
+const checkMatch = async () => {
+  const [a, b] = flippedCards;
+  const cardA = cards[a], cardB = cards[b];
+  const elA = document.querySelector(`.card[data-index="${a}"]`);
+  const elB = document.querySelector(`.card[data-index="${b}"]`);
+
+  await sleep(600);
+
+  if (cardA.id === cardB.id) {
+    // 配對成功
+    cardA.matched = cardB.matched = true;
+    elA.classList.add('matched');
+    elB.classList.add('matched');
+    elA.classList.remove('flipped');
+    elB.classList.remove('flipped');
+    matchedPairs++;
+    playSound('coin');
+    vibrate([30, 10, 30]);
+
+    // 粒子效果
+    const rect = elA.getBoundingClientRect();
+    particleBurst(rect.left + rect.width/2, rect.top + rect.height/2, 20);
+
+    document.getElementById('matchCount').textContent = matchedPairs;
+    renderProgress();
+
+    if (matchedPairs === 6) {
+      // 全部配對
+      gameActive = false;
+      clearInterval(timerInterval);
+      await sleep(400);
+      endGame('perfect');
+    }
+  } else {
+    // 配對失敗
+    elA.classList.add('wrong');
+    elB.classList.add('wrong');
+    playSound('tick');
+    await sleep(800);
+    elA.classList.remove('flipped', 'wrong');
+    elB.classList.remove('flipped', 'wrong');
+  }
+
+  flippedCards = [];
+  lockBoard    = false;
+};
+
+// ── 計時器 ──
+const startTimer = () => {
+  timerSec = 30;
+  const el = document.getElementById('timerDisplay');
+  el.textContent = '30';
+  timerInterval = setInterval(() => {
+    timerSec--;
+    el.textContent = timerSec;
+    if (timerSec <= 8) el.classList.add('urgent');
+    if (timerSec <= 5) { playSound('tick'); vibrate([15]); }
+    if (timerSec <= 0) {
+      clearInterval(timerInterval);
+      gameActive = false;
+      endGame('timeout');
+    }
+  }, 1000);
+};
+
+// ── 結束遊戲 ──
+const endGame = async (reason) => {
+  // 已到後台確認結果（不重複呼叫 API，在 startGame 就已呼叫）
+  const icon  = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const sub   = document.getElementById('resultSub');
+  const rm    = document.getElementById('resultMatches');
+  const btn   = document.getElementById('resultBtnText');
+
+  rm.textContent = matchedPairs;
+
+  if (reason === 'perfect' || matchedPairs >= 4) {
+    // 中獎
+    icon.textContent  = '✨';
+    title.textContent = matchedPairs === 6 ? '完美配對！' : '女神眷顧妳！';
+    title.className   = 'result-title gold';
+    confetti(4500);
+    playWinSound(activityInfo.sound_effect || 'cheerful');
+    vibrate([50, 50, 100]);
+
+    if (drawData?.won && drawData?.prize) {
+      sub.textContent = '妳的記憶力讓女神印象深刻！';
+      const pInfo = document.getElementById('prizeInfo');
+      pInfo.style.display = '';
+      document.getElementById('prizeNameEl').textContent = drawData.prize.name;
+      document.getElementById('prizeDescEl').textContent = drawData.prize.description || '';
+      if (drawData.prize.coupon_code) {
+        const c = document.getElementById('prizeCouponEl');
+        c.textContent  = '優惠碼：' + drawData.prize.coupon_code;
+        c.style.display = '';
+      }
+    } else {
+      sub.textContent = `配對 ${matchedPairs} 對！妳已獲得 ${50 * matchedPairs} 點獎勵`;
+    }
+    btn.textContent = '收下女神的禮物';
+    if (activityInfo.share_bonus_enabled) {
+      document.getElementById('shareBtnsWrap').style.display = '';
+    }
+  } else {
+    // 未達門檻
+    icon.textContent  = '🌙';
+    title.textContent = '繼續努力！';
+    title.className   = 'result-title';
+    sub.textContent   = `配對了 ${matchedPairs} 對，已獲得 ${matchedPairs * 5} 點安慰獎勵\n再努力一次，就能解鎖女神祝福！`;
+    btn.textContent   = '再試一次';
+    playSound('fail');
+  }
+
+  await sleep(300);
+  document.getElementById('resultOverlay').classList.add('show');
+};
+
+// ── 關閉結果 ──
+window.closeResult = () => {
+  document.getElementById('resultOverlay').classList.remove('show');
+  if (lastParticipationId && actId) {
+    setTimeout(() => {
+      location.href = `/feedback/activity.html?activity_id=${encodeURIComponent(actId)}&participation_id=${encodeURIComponent(lastParticipationId)}`;
+    }, 400);
+  } else {
+    // 重玩（沒有活動 ID 時）
+    startGame();
+  }
+};
+
+// ── 分享 ──
+window.doShare = async (channel) => {
+  if (!lastParticipationId) return;
+  const channelId = document.getElementById('channelId')?.value.trim();
+  const result    = await shareWin(lastParticipationId, channel, channelId || null);
+  openShareLink(channel, `我在梵森翻牌遊戲配對了 ${matchedPairs} 對！`);
+  if (result.ok) {
+    document.querySelector('.share-hint').textContent = `已獲得 ${result.bonus_points} 點獎勵！`;
+  }
+};
+
+// ── 載入活動 ──
+const loadActivity = async () => {
+  if (!actId) return;
+  try {
+    const r    = await fetch(`/api/play/${actId}/info`);
+    const data = await r.json();
+    if (r.ok) activityInfo = data;
+  } catch {}
+};
+
+// ── 開始遊戲 ──
+window.startGame = async () => {
+  const btn = document.getElementById('startBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '準備中…';
+  }
+
+  // 呼叫抽獎 API（若有 activity_id）
+  if (actId && !drawDone) {
+    const channelId = document.getElementById('channelId')?.value.trim();
+    try {
+      const r    = await fetch(`/api/play/${actId}/draw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_user_id: channelId || null }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        document.getElementById('errMsg').textContent = data.error || '活動已結束';
+        if (btn) { btn.disabled = false; btn.textContent = '開始挑戰'; }
+        return;
+      }
+      drawData = data;
+      lastParticipationId = data.participation_id;
+      drawDone = true;
+    } catch {
+      document.getElementById('errMsg').textContent = '網路錯誤';
+      if (btn) { btn.disabled = false; btn.textContent = '開始挑戰'; }
+      return;
+    }
+  }
+
+  // 顯示遊戲區
+  document.getElementById('preGame').style.display = 'none';
+  document.getElementById('gameArea').style.display = '';
+
+  // 重置
+  gameActive = false;
+  clearInterval(timerInterval);
+  document.getElementById('timerDisplay').classList.remove('urgent');
+  initCards();
+
+  // 延遲啟動
+  document.getElementById('gameHint').textContent = '準備好了嗎？遊戲馬上開始！';
+  await sleep(800);
+  document.getElementById('gameHint').textContent = '翻開兩張相同的牌完成配對';
+  gameActive = true;
+  startTimer();
+};
+
+loadActivity();
+</script>
+</body>
+</html>

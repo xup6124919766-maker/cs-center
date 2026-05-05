@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>梵森女神遊樂場</title>
+<link rel="stylesheet" href="/play/_shared.css">
+<style>
+/* ── 入口頁專屬 ── */
+.index-page { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 40px; }
+
+/* 英雄區 */
+.hero {
+  text-align: center;
+  padding: 32px 24px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(212,175,55,0.12) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--c-gold);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.hero h1 {
+  font-family: "PingFang TC", "Noto Serif TC", serif;
+  font-size: 30px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #D4AF37 0%, #E8B4A2 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+.hero .tagline {
+  font-size: 14px;
+  color: var(--c-text-dim);
+  line-height: 1.6;
+}
+
+/* 點數 + 簽到快速卡 */
+.quick-row {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px;
+  margin-bottom: 24px;
+}
+.quick-card {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 14px 12px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.2s;
+}
+.quick-card:active { transform: scale(0.96); }
+.quick-card.gold-border { border-color: rgba(212,175,55,0.3); background: rgba(212,175,55,0.05); }
+.quick-card.rose-border { border-color: rgba(183,110,121,0.3); background: rgba(183,110,121,0.05); }
+.quick-icon { font-size: 24px; margin-bottom: 6px; }
+.quick-label { font-size: 11px; color: var(--c-text-dim); margin-bottom: 2px; }
+.quick-value { font-size: 20px; font-weight: 800; color: var(--c-gold); line-height: 1; }
+.quick-sub { font-size: 10px; color: var(--c-text-dim); margin-top: 2px; }
+
+/* 遊戲分類標題 */
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 20px;
+  margin-bottom: 12px;
+}
+
+/* 遊戲卡 */
+.games-list { padding: 0 20px; margin-bottom: 28px; }
+.game-card-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 18px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
+}
+.game-card-item:active { transform: scale(0.97); background: rgba(255,255,255,0.07); }
+.game-card-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 60%, rgba(212,175,55,0.04));
+  pointer-events: none;
+}
+
+/* 左側遊戲圖示 */
+.game-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.gi-wheel    { background: linear-gradient(135deg, #2c1f3d, #1a1a2e); border: 1px solid rgba(212,175,55,0.3); }
+.gi-scratch  { background: linear-gradient(135deg, #3d1a25, #2a1020); border: 1px solid rgba(183,110,121,0.35); }
+.gi-gacha    { background: linear-gradient(135deg, #1a2a3d, #102030); border: 1px solid rgba(126,200,200,0.3); }
+.gi-checkin  { background: linear-gradient(135deg, #2a1a00, #1a1200); border: 1px solid rgba(212,175,55,0.3); }
+.gi-lb       { background: linear-gradient(135deg, #1a1a2e, #0f0f1e); border: 1px solid rgba(147,112,219,0.3); }
+.gi-memory   { background: linear-gradient(135deg, #1a2a1a, #0f1f0f); border: 1px solid rgba(80,200,120,0.3); }
+.gi-mystery  { background: linear-gradient(135deg, #1a1535, #100a25); border: 1px solid rgba(147,112,219,0.35); }
+
+/* 遊戲資訊 */
+.game-info { flex: 1; min-width: 0; }
+.game-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.game-desc { font-size: 12px; color: var(--c-text-dim); line-height: 1.4; }
+.game-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-top: 6px;
+  display: inline-block;
+}
+.badge-new  { background: rgba(183,110,121,0.2); border: 1px solid rgba(183,110,121,0.4); color: #E8B4A2; }
+.badge-hot  { background: rgba(212,175,55,0.15); border: 1px solid rgba(212,175,55,0.35); color: var(--c-gold); }
+.badge-daily { background: rgba(80,200,120,0.12); border: 1px solid rgba(80,200,120,0.3); color: #50c878; }
+
+/* 箭頭 */
+.game-arrow { font-size: 18px; color: rgba(255,255,255,0.2); flex-shrink: 0; }
+
+/* 邀請區 */
+.invite-section {
+  margin: 0 20px;
+  background: linear-gradient(135deg, rgba(183,110,121,0.1), rgba(232,180,162,0.06));
+  border: 1px solid rgba(183,110,121,0.2);
+  border-radius: 18px;
+  padding: 18px 20px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.invite-title { font-size: 15px; font-weight: 700; color: #E8B4A2; margin-bottom: 6px; }
+.invite-sub   { font-size: 12px; color: var(--c-text-dim); line-height: 1.5; margin-bottom: 14px; }
+
+/* 排行榜快速區塊 */
+.lb-quick {
+  margin: 0 20px 20px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 18px;
+  padding: 16px;
+}
+.lb-quick-title {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lb-quick-link { font-size: 12px; color: var(--c-gold); }
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.lb-row:last-child { margin-bottom: 0; }
+.lb-rank { font-size: 16px; width: 24px; text-align: center; }
+.lb-name { flex: 1; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); }
+.lb-wins { font-size: 13px; color: var(--c-gold); font-weight: 700; }
+</style>
+</head>
+<body class="faisem-game">
+<div class="index-page">
+
+  <!-- 頂部 -->
+  <div class="game-topbar">
+    <span class="logo">梵森女神</span>
+    <span class="pts-badge" id="ptsBadge">✦ 0 點</span>
+  </div>
+
+  <!-- 英雄區 -->
+  <div class="hero">
+    <div class="hero-eyebrow">FAISEM GODDESS ZONE</div>
+    <h1>女神遊樂場</h1>
+    <div class="tagline">每一次遊戲，都是女神為妳準備的驚喜<br>讓自信從這裡開始</div>
+  </div>
+
+  <!-- 快速資訊 -->
+  <div class="quick-row">
+    <div class="quick-card gold-border" onclick="location.href='/play/check-in.html'">
+      <div class="quick-icon">🌸</div>
+      <div class="quick-label">累積點數</div>
+      <div class="quick-value" id="myPoints">0</div>
+      <div class="quick-sub">女神獎勵</div>
+    </div>
+    <div class="quick-card rose-border" onclick="location.href='/play/check-in.html'">
+      <div class="quick-icon">📅</div>
+      <div class="quick-label">今日簽到</div>
+      <div class="quick-value" id="checkinStatus" style="font-size:14px;color:var(--c-text-dim)">未簽到</div>
+      <div class="quick-sub" id="streakInfo">連續 0 天</div>
+    </div>
+    <div class="quick-card" onclick="location.href='/play/leaderboard.html'" style="border-color:rgba(147,112,219,0.3)">
+      <div class="quick-icon">🏆</div>
+      <div class="quick-label">排行榜</div>
+      <div class="quick-value" id="myRank" style="font-size:14px;color:rgba(147,112,219,0.8)">查看</div>
+      <div class="quick-sub">女神使者</div>
+    </div>
+  </div>
+
+  <!-- 遊戲列表 -->
+  <div class="section-title">選擇遊戲</div>
+  <div class="games-list">
+
+    <a class="game-card-item" href="/play/wheel.html">
+      <div class="game-icon-wrap gi-wheel">🎡</div>
+      <div class="game-info">
+        <div class="game-name">女神轉盤</div>
+        <div class="game-desc">讓女神為妳轉出專屬禮物，Canvas 物理旋轉</div>
+        <span class="game-badge badge-hot">人氣</span>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/scratch.html">
+      <div class="game-icon-wrap gi-scratch">💎</div>
+      <div class="game-info">
+        <div class="game-name">女神刮刮樂</div>
+        <div class="game-desc">用指尖喚醒女神祝福，玫瑰金刮卡</div>
+        <span class="game-badge badge-hot">人氣</span>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/gacha.html">
+      <div class="game-icon-wrap gi-gacha">🥚</div>
+      <div class="game-info">
+        <div class="game-name">女神扭蛋</div>
+        <div class="game-desc">3D 玻璃球機台，開蛋看女神的驚喜</div>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/memory.html">
+      <div class="game-icon-wrap gi-memory">🃏</div>
+      <div class="game-info">
+        <div class="game-name">翻牌記憶</div>
+        <div class="game-desc">30 秒配對梵森商品，考驗妳的女神記憶力</div>
+        <span class="game-badge badge-new">新遊戲</span>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/mystery-box.html">
+      <div class="game-icon-wrap gi-mystery">🎁</div>
+      <div class="game-info">
+        <div class="game-name">神秘禮物盒</div>
+        <div class="game-desc">五位希臘女神親自為妳挑選禮物</div>
+        <span class="game-badge badge-new">新遊戲</span>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/check-in.html">
+      <div class="game-icon-wrap gi-checkin">🌷</div>
+      <div class="game-info">
+        <div class="game-name">每日簽到</div>
+        <div class="game-desc">連續簽到解鎖女神獎章，最高 30 天金牌</div>
+        <span class="game-badge badge-daily">每日</span>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+    <a class="game-card-item" href="/play/leaderboard.html">
+      <div class="game-icon-wrap gi-lb">🏆</div>
+      <div class="game-info">
+        <div class="game-name">女神排行榜</div>
+        <div class="game-desc">前三名 podium 特效，30 秒即時更新</div>
+      </div>
+      <div class="game-arrow">›</div>
+    </a>
+
+  </div>
+
+  <!-- 排行榜快速預覽 -->
+  <div class="lb-quick">
+    <div class="lb-quick-title">
+      <span>最近中獎女神使者</span>
+      <a href="/play/leaderboard.html" class="lb-quick-link">查看完整榜單 ›</a>
+    </div>
+    <div id="lbPreview">
+      <div style="text-align:center;padding:16px;color:var(--c-text-dim);font-size:13px">載入中…</div>
+    </div>
+  </div>
+
+  <!-- 邀請朋友 -->
+  <div class="invite-section">
+    <div class="invite-title">邀請朋友 · 雙方各得 100 點</div>
+    <div class="invite-sub">把女神的緣分分享給妳最好的朋友<br>妳們都能獲得女神獎勵</div>
+    <button class="btn-gold" onclick="copyInviteLink()">複製邀請連結</button>
+  </div>
+
+</div>
+
+<script type="module">
+import { playSound, esc } from '/play/_shared.js';
+
+const params       = new URLSearchParams(location.search);
+const clientId     = params.get('client_id') || '1';
+const channelUserId = params.get('channel_user_id') || null;
+const customerId   = params.get('customer_id') || null;
+
+// ── 載入點數 / 簽到狀態 ──
+const loadStatus = async () => {
+  if (!channelUserId && !customerId) return;
+  try {
+    let url = `/api/play/check-in/${clientId}/status?`;
+    if (customerId)    url += `customer_id=${customerId}`;
+    else if (channelUserId) url += `channel_user_id=${channelUserId}`;
+
+    const r    = await fetch(url);
+    const data = await r.json();
+
+    document.getElementById('myPoints').textContent = data.points_balance || 0;
+    document.getElementById('ptsBadge').textContent = `✦ ${data.points_balance || 0} 點`;
+    document.getElementById('streakInfo').textContent = `連續 ${data.streak_days || 0} 天`;
+
+    if (data.checked_today) {
+      document.getElementById('checkinStatus').textContent = '已簽到';
+      document.getElementById('checkinStatus').style.color = '#50c878';
+    } else {
+      document.getElementById('checkinStatus').textContent = '點此簽到';
+      document.getElementById('checkinStatus').style.color = '#ff6b8a';
+    }
+  } catch {}
+};
+
+// ── 排行榜預覽 ──
+const loadLbPreview = async () => {
+  try {
+    const r    = await fetch(`/api/play/leaderboard/global?client_id=${clientId}&limit=3`);
+    const data = await r.json();
+    const list = data.leaderboard || [];
+
+    const container = document.getElementById('lbPreview');
+    if (!list.length) {
+      container.innerHTML = '<div style="text-align:center;padding:12px;color:rgba(255,255,255,0.3);font-size:13px">尚無中獎紀錄，成為第一個！</div>';
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    container.innerHTML = list.map((item, i) => `
+      <div class="lb-row">
+        <div class="lb-rank">${medals[i] || i+1}</div>
+        <div class="lb-name">${esc(item.customer_name || '神秘使者')}</div>
+        <div class="lb-wins">${item.total_wins} 次</div>
+      </div>
+    `).join('');
+  } catch {}
+};
+
+// ── 邀請連結 ──
+window.copyInviteLink = async () => {
+  if (!customerId) {
+    // 沒登入：直接複製當前頁面
+    try {
+      await navigator.clipboard.writeText(location.href);
+      showToast('連結已複製！');
+    } catch {}
+    return;
+  }
+  try {
+    const r    = await fetch(`/api/play/referral/${clientId}?customer_id=${customerId}`);
+    const data = await r.json();
+    if (data.invite_url) {
+      await navigator.clipboard.writeText(data.invite_url);
+      showToast('邀請連結已複製！快分享給朋友');
+      playSound('coin');
+    }
+  } catch {
+    showToast('複製失敗，請手動分享');
+  }
+};
+
+// ── Toast ──
+const showToast = (msg) => {
+  const t = document.createElement('div');
+  t.style.cssText = `
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(212,175,55,0.15);
+    border: 1px solid rgba(212,175,55,0.4);
+    color: #D4AF37;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 50px;
+    z-index: 500;
+    backdrop-filter: blur(10px);
+    animation: fade-in-up 0.3s ease;
+    white-space: nowrap;
+  `;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.3s';
+    t.style.opacity    = '0';
+    setTimeout(() => t.remove(), 300);
+  }, 2500);
+};
+
+loadStatus();
+loadLbPreview();
+</script>
+</body>
+</html>

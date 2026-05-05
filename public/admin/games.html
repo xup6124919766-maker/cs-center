@@ -78,9 +78,11 @@
       <div><label>名稱</label><input id="f_name" placeholder="春季抽獎活動"></div>
       <div><label>類型</label>
         <select id="f_type">
-          <option value="wheel">大轉盤</option>
-          <option value="scratch">刮刮樂</option>
-          <option value="gacha">扭蛋</option>
+          <option value="wheel">🎡 大轉盤</option>
+          <option value="scratch">💎 刮刮樂</option>
+          <option value="gacha">🥚 扭蛋</option>
+          <option value="memory">🃏 翻牌記憶（新）</option>
+          <option value="mystery-box">🎁 神秘禮物盒（新）</option>
         </select>
       </div>
     </div>
@@ -157,8 +159,8 @@ const api = async (method, path, body) => {
   return r.json();
 };
 
-const typeLabel = { wheel: '大轉盤', scratch: '刮刮樂', gacha: '扭蛋' };
-const typeEmoji = { wheel: '🎰', scratch: '🎟️', gacha: '🥚' };
+const typeLabel = { wheel: '大轉盤', scratch: '刮刮樂', gacha: '扭蛋', memory: '翻牌記憶', 'mystery-box': '神秘禮物盒' };
+const typeEmoji = { wheel: '🎡', scratch: '💎', gacha: '🥚', memory: '🃏', 'mystery-box': '🎁' };
 
 const renderList = () => {
   const tbody = document.getElementById('listBody');
@@ -176,6 +178,7 @@ const renderList = () => {
         ${a.status === 'draft' ? `<button class="btn btn-green" style="padding:4px 8px;font-size:12px" onclick="startActivity(${a.id})">啟動</button>` : ''}
         ${a.status === 'active' ? `<button class="btn btn-red" style="padding:4px 8px;font-size:12px" onclick="endActivity(${a.id})">結束</button>` : ''}
         ${a.status === 'active' ? `<button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="copyLink(${a.id}, '${a.type}')">複製連結</button>` : ''}
+        <button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="previewGame(${a.id}, '${a.type}')">預覽</button>
         <button class="btn btn-gray" style="padding:4px 8px;font-size:12px" onclick="viewStats(${a.id})">統計</button>
         <button class="btn btn-red" style="padding:4px 8px;font-size:12px" onclick="deleteActivity(${a.id})">刪除</button>
       </td>
@@ -297,6 +300,11 @@ const deleteActivity = async (id) => {
 const copyLink = (id, type) => {
   const url = `${location.origin}/play/${type}.html?activity_id=${id}`;
   navigator.clipboard.writeText(url).then(() => show(`連結已複製：${url}`, 'ok'));
+};
+
+const previewGame = (id, type) => {
+  const url = `/play/${type}.html?activity_id=${id}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 const viewStats = async (id) => {

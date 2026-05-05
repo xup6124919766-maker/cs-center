@@ -1,0 +1,510 @@
+/* ═══════════════════════════════════════════════════
+   梵森女神遊戲設計系統 — _shared.css
+   黑金 / 粉霧 / 玫瑰金配色
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  /* ── 女神配色 ── */
+  --c-gold:        #D4AF37;
+  --c-gold-light:  #FFD700;
+  --c-gold-dark:   #B8860B;
+  --c-rose:        #B76E79;
+  --c-rose-light:  #E8B4A2;
+  --c-rose-dark:   #A0525D;
+  --c-pink-mist:   #FFE4E1;
+  --c-velvet:      #1a1a2e;
+  --c-velvet-mid:  #16213e;
+  --c-velvet-deep: #0f0a1a;
+  --c-silver:      #C0C0C0;
+  --c-white:       #FFFFFF;
+  --c-text-dim:    rgba(255,255,255,0.55);
+
+  /* ── 漸層 ── */
+  --grad-gold:     linear-gradient(135deg, #D4AF37 0%, #FFD700 50%, #B8860B 100%);
+  --grad-rose:     linear-gradient(135deg, #B76E79 0%, #E8B4A2 50%, #D4A574 100%);
+  --grad-velvet:   linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  --grad-aurora:   linear-gradient(135deg, #2c1f3d 0%, #1a1a2e 50%, #0f0a1a 100%);
+  --grad-silver:   linear-gradient(135deg, #C0C0C0, #E5E5E5);
+  --grad-btn:      linear-gradient(135deg, #D4AF37 0%, #E8B4A2 100%);
+
+  /* ── 字型 ── */
+  --font-display:  "PingFang TC", "Noto Serif TC", Georgia, serif;
+  --font-body:     "Noto Sans TC", "PingFang TC", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── 間距 ── */
+  --r-sm:   8px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-xl:   28px;
+
+  /* ── 陰影 ── */
+  --shadow-gold:   0 0 24px rgba(212,175,55,0.35);
+  --shadow-rose:   0 0 20px rgba(183,110,121,0.4);
+  --shadow-card:   0 8px 32px rgba(0,0,0,0.45);
+}
+
+/* ── 全域重設 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body.faisem-game {
+  font-family: var(--font-body);
+  background: radial-gradient(ellipse at top, #2c1f3d 0%, #1a1a2e 40%, #0f0a1a 100%);
+  color: var(--c-white);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─────────────── 共用元件 ─────────────── */
+
+/* 頂部導覽 */
+.game-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(26,26,46,0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(212,175,55,0.18);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.game-topbar .logo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.05em;
+}
+.game-topbar .pts-badge {
+  font-size: 13px;
+  color: var(--c-gold);
+  background: rgba(212,175,55,0.12);
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+/* 卡片 */
+.game-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(212,175,55,0.15);
+  border-radius: var(--r-xl);
+  padding: 24px 20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-card);
+}
+
+/* 黃金按鈕 */
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px 28px;
+  border: none;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background: var(--grad-gold);
+  color: #1a1a2e;
+  box-shadow: 0 4px 20px rgba(212,175,55,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  letter-spacing: 0.03em;
+  width: 100%;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-gold:active { transform: scale(0.96); box-shadow: 0 2px 10px rgba(212,175,55,0.3); }
+.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* 玫瑰金按鈕 */
+.btn-rose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 24px;
+  border: none;
+  border-radius: 50px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background: var(--grad-rose);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(183,110,121,0.4);
+  transition: transform 0.15s, opacity 0.15s;
+  letter-spacing: 0.02em;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-rose:active { transform: scale(0.96); }
+.btn-rose:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 透明邊框按鈕 */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: 1px solid rgba(212,175,55,0.4);
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background: transparent;
+  color: var(--c-gold);
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ghost:hover { background: rgba(212,175,55,0.1); }
+
+/* 活動 Meta */
+.meta-bar {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.meta-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--c-text-dim);
+}
+.meta-tag.warn { color: #FFB347; border-color: rgba(255,179,71,0.3); background: rgba(255,179,71,0.08); }
+.meta-tag.gold { color: var(--c-gold); border-color: rgba(212,175,55,0.3); background: rgba(212,175,55,0.08); }
+
+/* 倒數標籤 */
+.countdown-tag {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff6b8a;
+  background: rgba(255,107,138,0.1);
+  border: 1px solid rgba(255,107,138,0.25);
+  border-radius: 20px;
+  padding: 5px 14px;
+  animation: pulse-red 2s ease infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* LINE 輸入區 */
+.id-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  font-size: 14px;
+  color: #fff;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 14px;
+}
+.id-input::placeholder { color: rgba(255,255,255,0.35); }
+.id-input:focus { border-color: rgba(212,175,55,0.5); }
+
+/* 錯誤訊息 */
+.err-msg {
+  color: #ff6b8a;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 10px;
+  min-height: 18px;
+}
+
+/* 結果標籤 */
+.result-win {
+  background: linear-gradient(135deg, rgba(212,175,55,0.15), rgba(232,180,162,0.15));
+  border: 1px solid rgba(212,175,55,0.4);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  text-align: center;
+}
+.result-lose {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  text-align: center;
+  color: var(--c-text-dim);
+}
+
+/* ─────────────── 中獎彈窗 ─────────────── */
+.win-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.win-overlay.show {
+  display: flex;
+  animation: fadeInOverlay 0.3s ease;
+}
+@keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+
+.win-box {
+  background: linear-gradient(145deg, #1e1235, #16213e);
+  border: 1px solid rgba(212,175,55,0.5);
+  border-radius: 28px;
+  padding: 36px 28px 28px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 0 60px rgba(212,175,55,0.2), 0 20px 60px rgba(0,0,0,0.5);
+  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+.win-box::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+@keyframes popIn {
+  from { transform: scale(0.6) translateY(30px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.win-crown { font-size: 56px; margin-bottom: 10px; animation: bounce-in 0.6s ease 0.3s both; }
+@keyframes bounce-in {
+  0% { transform: scale(0) rotate(-20deg); }
+  70% { transform: scale(1.15) rotate(5deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.win-title {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+}
+.win-subtitle { font-size: 13px; color: var(--c-text-dim); margin-bottom: 14px; line-height: 1.5; }
+.win-prize-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+  font-family: var(--font-display);
+}
+.win-coupon {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--c-gold);
+  letter-spacing: 3px;
+  background: rgba(212,175,55,0.1);
+  border: 1px dashed rgba(212,175,55,0.4);
+  border-radius: 10px;
+  padding: 8px 16px;
+  margin: 10px 0;
+}
+
+/* 分享按鈕組 */
+.share-section { margin-top: 18px; }
+.share-hint { font-size: 12px; color: var(--c-gold); margin-bottom: 10px; opacity: 0.8; }
+.share-btns { display: flex; gap: 8px; }
+.share-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  transition: transform 0.1s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.share-btn:active { transform: scale(0.93); }
+.share-line { background: #06C755; }
+.share-ig { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+.share-fb { background: #1877f2; }
+
+.win-close {
+  margin-top: 14px;
+  padding: 11px;
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--c-text-dim);
+  font-family: var(--font-body);
+  transition: all 0.2s;
+}
+.win-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+/* 失敗彈窗 */
+.lose-box {
+  background: linear-gradient(145deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 28px;
+  padding: 36px 28px 28px;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+  animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.lose-moon { font-size: 52px; margin-bottom: 10px; }
+.lose-title { font-size: 20px; font-weight: 700; color: #e0c4ff; margin-bottom: 8px; }
+.lose-sub { font-size: 13px; color: var(--c-text-dim); line-height: 1.6; margin-bottom: 20px; }
+
+/* ─────────────── 粒子 / 紙花 ─────────────── */
+.confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 400;
+}
+
+/* ─────────────── 標題區 ─────────────── */
+.game-header {
+  text-align: center;
+  padding: 24px 20px 16px;
+}
+.game-header h1 {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.game-header .sub {
+  font-size: 14px;
+  color: var(--c-text-dim);
+  line-height: 1.5;
+}
+
+/* ─────────────── 分隔線 ─────────────── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,175,55,0.3), transparent);
+  margin: 20px 0;
+}
+
+/* ─────────────── 通用動畫 ─────────────── */
+@keyframes float-up {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(-120vh) rotate(540deg); opacity: 0; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(212,175,55,0.3); }
+  50%       { box-shadow: 0 0 40px rgba(212,175,55,0.6); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  14%       { transform: scale(1.12); }
+  28%       { transform: scale(1); }
+  42%       { transform: scale(1.08); }
+  70%       { transform: scale(1); }
+}
+
+/* ─────────────── 星光粒子（裝飾）─────────────── */
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50%       { opacity: 1; transform: scale(1); }
+}
+.star {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--c-gold-light);
+  animation: twinkle 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ─────────────── 讀取動畫 ─────────────── */
+.loading-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(212,175,55,0.2);
+  border-top-color: var(--c-gold);
+  border-radius: 50%;
+  animation: spin-slow 0.8s linear infinite;
+  margin: 20px auto;
+}
+
+/* ─────────────── 點數滾動顯示 ─────────────── */
+.points-display {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.points-display .label { font-size: 12px; color: var(--c-text-dim); margin-bottom: 4px; }
+.points-display .value {
+  font-size: 42px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+/* ─────────────── 手機安全距離 ─────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+/* ─────────────── Responsive ─────────────── */
+@media (max-width: 390px) {
+  .win-box { padding: 28px 20px 22px; }
+  .win-crown { font-size: 44px; }
+  .game-header h1 { font-size: 22px; }
+}
+@media (min-width: 600px) {
+  body.faisem-game { display: flex; align-items: flex-start; justify-content: center; }
+  body.faisem-game > .page-wrap { max-width: 480px; width: 100%; }
+}

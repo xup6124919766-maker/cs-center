@@ -2,58 +2,273 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>每日簽到</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>每日簽到 — 梵森</title>
+<link rel="stylesheet" href="/play/_shared.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-  .wrap { background: #fff; border-radius: 20px; padding: 28px 20px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-  h1 { font-size: 24px; margin-bottom: 4px; }
-  .sub { color: #888; font-size: 14px; margin-bottom: 20px; }
-  /* 點數卡片 */
-  .points-card { background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 14px; padding: 16px; color: #fff; margin-bottom: 20px; }
-  .points-card .label { font-size: 13px; opacity: 0.8; }
-  .points-card .value { font-size: 36px; font-weight: 700; margin: 4px 0; }
-  .streak-row { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
-  .streak-item { background: rgba(255,255,255,0.2); border-radius: 10px; padding: 8px 14px; text-align: center; }
-  .streak-item .s-label { font-size: 11px; opacity: 0.8; }
-  .streak-item .s-val { font-size: 20px; font-weight: 700; }
-  /* 7天月曆 */
-  .calendar-title { font-size: 13px; color: #666; margin-bottom: 10px; font-weight: 500; }
-  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; }
-  .day-cell { border-radius: 10px; padding: 8px 4px; font-size: 11px; }
-  .day-cell .day-label { color: #888; margin-bottom: 3px; }
-  .day-cell .day-icon { font-size: 20px; }
-  .day-cell.done { background: #e8f5e9; }
-  .day-cell.today { background: #fff3e0; border: 2px solid #f0c040; }
-  .day-cell.future { background: #f5f5f5; }
-  .day-cell.today .day-label { font-weight: 700; color: #333; }
-  /* 簽到按鈕 */
-  .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; transition: transform 0.1s; margin-bottom: 12px; }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn.done { background: #ccc; }
-  /* 邀請區 */
-  .invite-section { background: #f8f8fb; border-radius: 12px; padding: 16px; margin-top: 8px; }
-  .invite-section h3 { font-size: 15px; margin-bottom: 10px; }
-  .invite-url { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 12px; color: #555; word-break: break-all; margin-bottom: 8px; }
-  .btn-copy { width: 100%; padding: 10px; border: none; border-radius: 8px; background: #5856d6; color: #fff; font-size: 14px; cursor: pointer; }
-  .msg { padding: 10px; border-radius: 8px; font-size: 14px; margin: 10px 0; }
-  .msg.ok { background: #d1f7e0; color: #1b7c3e; }
-  .msg.err { background: #ffe0e0; color: #b00; }
-  input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
-  .points-rules { font-size: 12px; color: #888; text-align: left; margin-bottom: 14px; line-height: 1.6; }
+/* ── 簽到專屬 ── */
+.checkin-page { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 40px; }
+
+/* 點數卡 */
+.points-card {
+  margin: 0 20px 20px;
+  background: linear-gradient(135deg, #2c1f3d 0%, #1a1a2e 50%, #1e1535 100%);
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 20px;
+  padding: 22px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(212,175,55,0.1);
+}
+.points-card::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -10%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+.points-card .label {
+  font-size: 12px;
+  color: var(--c-text-dim);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.points-card .value {
+  font-size: 52px;
+  font-weight: 900;
+  font-family: "PingFang TC", "Noto Serif TC", serif;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 16px;
+  animation: number-in 0.5s ease;
+}
+@keyframes number-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+.streak-row { display: flex; gap: 10px; }
+.streak-item {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+.streak-item .s-label { font-size: 11px; color: var(--c-text-dim); margin-bottom: 2px; }
+.streak-item .s-val {
+  font-size: 24px;
+  font-weight: 800;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 月曆 */
+.calendar-section { padding: 0 20px; margin-bottom: 20px; }
+.calendar-title {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  text-align: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.day-cell {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: all 0.3s;
+}
+.day-cell .d-label { color: rgba(255,255,255,0.4); font-weight: 600; margin-bottom: 2px; font-size: 10px; }
+.day-cell .d-icon { font-size: 18px; line-height: 1; }
+
+/* 已簽到 */
+.day-cell.done {
+  background: linear-gradient(135deg, rgba(212,175,55,0.15), rgba(183,110,121,0.1));
+  border-color: rgba(212,175,55,0.3);
+}
+.day-cell.done .d-icon { animation: bloom 0.5s ease; }
+@keyframes bloom {
+  0%   { transform: scale(0) rotate(-20deg); }
+  60%  { transform: scale(1.2) rotate(5deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* 今天 */
+.day-cell.today {
+  background: linear-gradient(135deg, rgba(183,110,121,0.2), rgba(232,180,162,0.15));
+  border-color: rgba(183,110,121,0.5);
+  box-shadow: 0 0 12px rgba(183,110,121,0.3);
+}
+.day-cell.today .d-label { color: rgba(232,180,162,0.9); }
+
+/* 未來 */
+.day-cell.future {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.06);
+}
+.day-cell.future .d-icon { opacity: 0.3; }
+
+/* 連續 7 天獎章 */
+.milestone-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px;
+  margin-bottom: 20px;
+}
+.milestone-item {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px 8px;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s;
+}
+.milestone-item.unlocked {
+  background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(183,110,121,0.08));
+  border-color: rgba(212,175,55,0.4);
+  box-shadow: 0 0 12px rgba(212,175,55,0.15);
+}
+.milestone-icon { font-size: 24px; margin-bottom: 4px; }
+.milestone-label { font-size: 10px; color: var(--c-text-dim); line-height: 1.3; }
+.milestone-item.unlocked .milestone-label { color: var(--c-gold); }
+
+/* 簽到按鈕 */
+.checkin-btn-wrap { padding: 0 20px 16px; }
+
+/* 已簽到樣式 */
+.btn-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px 28px;
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 700;
+  width: 100%;
+  background: rgba(212,175,55,0.08);
+  color: var(--c-gold);
+  cursor: default;
+}
+
+/* 訊息 */
+.checkin-msg {
+  margin: 0 20px 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  display: none;
+  animation: scale-in 0.3s ease;
+}
+.checkin-msg.ok  { background: rgba(80,200,120,0.12); border: 1px solid rgba(80,200,120,0.3); color: #50c878; }
+.checkin-msg.err { background: rgba(255,107,138,0.1); border: 1px solid rgba(255,107,138,0.25); color: #ff6b8a; }
+
+/* 積分說明 */
+.rules-card {
+  margin: 0 20px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.rules-title { font-size: 12px; color: var(--c-text-dim); margin-bottom: 8px; letter-spacing: 0.05em; font-weight: 600; }
+.rules-list { list-style: none; }
+.rules-list li {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+}
+.rules-list li:last-child { border: none; }
+.rules-list .pts { color: var(--c-gold); font-weight: 700; }
+
+/* 邀請區 */
+.invite-card {
+  margin: 12px 20px 0;
+  background: linear-gradient(135deg, rgba(183,110,121,0.12), rgba(232,180,162,0.08));
+  border: 1px solid rgba(183,110,121,0.25);
+  border-radius: 14px;
+  padding: 16px;
+}
+.invite-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #E8B4A2; }
+.invite-url {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+.btn-copy {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--grad-rose);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 簽到成功特效 */
+@keyframes star-pop {
+  0%   { transform: translate(-50%, -50%) scale(0) rotate(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(3) rotate(180deg); opacity: 0; }
+}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <h1>每日簽到</h1>
-  <div class="sub">連續簽到可獲得更多點數！</div>
+<body class="faisem-game">
+<div class="checkin-page">
 
-  <div id="msgEl" class="msg" style="display:none"></div>
+  <div class="game-topbar">
+    <a href="/play/index.html" style="color:var(--c-text-dim);text-decoration:none;font-size:13px;">← 所有遊戲</a>
+    <span class="logo">梵森女神</span>
+    <span style="font-size:13px;color:var(--c-text-dim);">每日簽到</span>
+  </div>
 
+  <div class="game-header">
+    <h1>每日簽到</h1>
+    <div class="sub">連續簽到，讓女神的祝福越來越強</div>
+  </div>
+
+  <!-- 訊息 -->
+  <div class="checkin-msg" id="msgEl"></div>
+
+  <!-- 點數卡 -->
   <div class="points-card">
-    <div class="label">累積點數</div>
+    <div class="label">累積女神點數</div>
     <div class="value" id="pointsBalance">0</div>
     <div class="streak-row">
       <div class="streak-item">
@@ -67,130 +282,254 @@
     </div>
   </div>
 
-  <div class="calendar-title">本週簽到進度</div>
-  <div class="calendar" id="calendar"></div>
-
-  <div class="points-rules">
-    每日簽到：+5 點 | 連續 7 天：+20 點 | 連續 30 天：+100 點
+  <!-- 里程碑 -->
+  <div class="milestone-bar">
+    <div class="milestone-item" id="ms7" title="連續 7 天">
+      <div class="milestone-icon">🌹</div>
+      <div class="milestone-label">連續 7 天<br>+100 點</div>
+    </div>
+    <div class="milestone-item" id="ms14" title="連續 14 天">
+      <div class="milestone-icon">👑</div>
+      <div class="milestone-label">連續 14 天<br>+200 點</div>
+    </div>
+    <div class="milestone-item" id="ms30" title="連續 30 天">
+      <div class="milestone-icon">✨</div>
+      <div class="milestone-label">連續 30 天<br>女神金牌</div>
+    </div>
   </div>
 
-  <button class="btn" id="checkinBtn" onclick="doCheckin()">今天簽到</button>
+  <!-- 本週月曆 -->
+  <div class="calendar-section">
+    <div class="calendar-title">本週簽到進度</div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+  </div>
 
-  <div class="invite-section" id="inviteSection" style="display:none">
-    <h3>邀請朋友 — 雙方各得 100 點</h3>
+  <!-- 簽到按鈕 -->
+  <div class="checkin-btn-wrap">
+    <button class="btn-gold" id="checkinBtn" onclick="doCheckin()">今日簽到 ✨</button>
+  </div>
+
+  <!-- 積分規則 -->
+  <div class="rules-card">
+    <div class="rules-title">積分規則</div>
+    <ul class="rules-list">
+      <li><span>每日簽到</span><span class="pts">+5 點</span></li>
+      <li><span>連續 7 天</span><span class="pts">+100 點</span></li>
+      <li><span>連續 14 天</span><span class="pts">+200 點</span></li>
+      <li><span>連續 30 天</span><span class="pts">女神金牌 +500 點</span></li>
+    </ul>
+  </div>
+
+  <!-- 邀請區 -->
+  <div class="invite-card" id="inviteSection" style="display:none">
+    <div class="invite-title">邀請朋友 — 雙方各得 100 點</div>
     <div class="invite-url" id="inviteUrl">載入中…</div>
     <button class="btn-copy" onclick="copyInviteUrl()">複製邀請連結</button>
   </div>
+
 </div>
 
-<script>
-const params = new URLSearchParams(location.search);
-const clientId = params.get('client_id') || '1';
-const customerId = params.get('customer_id') || null;
+<script type="module">
+import { playSound, confetti, vibrate, sleep } from '/play/_shared.js';
+
+const params       = new URLSearchParams(location.search);
+const clientId     = params.get('client_id') || '1';
+const customerId   = params.get('customer_id') || null;
 const channelUserId = params.get('channel_user_id') || null;
-const refCode = params.get('ref') || null;
+const refCode      = params.get('ref') || null;
 
 let checkedToday = false;
 
 const showMsg = (text, type) => {
   const el = document.getElementById('msgEl');
   el.textContent = text;
-  el.className = 'msg ' + type;
+  el.className = 'checkin-msg ' + type;
   el.style.display = '';
   setTimeout(() => { el.style.display = 'none'; }, 4000);
 };
 
+// ── 月曆渲染 ──
 const renderCalendar = (streakDays, totalDays) => {
-  const cal = document.getElementById('calendar');
-  const days = ['日','一','二','三','四','五','六'];
-  const today = new Date().getDay();
-  cal.innerHTML = '';
+  const grid = document.getElementById('calendarGrid');
+  const dayNames = ['日','一','二','三','四','五','六'];
+  const today    = new Date().getDay();
+  grid.innerHTML  = '';
+
   for (let i = 0; i < 7; i++) {
     const isToday = i === today;
-    const daysSinceToday = i - today;
-    const isPast = i < today;
-    const isDone = isPast || (isToday && checkedToday);
-    const cell = document.createElement('div');
-    cell.className = 'day-cell ' + (isDone ? 'done' : isToday ? 'today' : 'future');
-    cell.innerHTML = `<div class="day-label">${days[i]}</div><div class="day-icon">${isDone ? '✅' : isToday ? '📅' : '○'}</div>`;
-    cal.appendChild(cell);
+    const isPast  = i < today;
+    const isDone  = isPast || (isToday && checkedToday);
+
+    const cell   = document.createElement('div');
+    let cls = 'day-cell ';
+    if (isDone)  cls += 'done';
+    else if (isToday) cls += 'today';
+    else cls += 'future';
+    cell.className = cls;
+
+    let icon = '○';
+    if (isDone)  icon = '🌸';
+    else if (isToday) icon = checkedToday ? '🌸' : '🌷';
+    else icon = '○';
+
+    cell.innerHTML = `<div class="d-label">${dayNames[i]}</div><div class="d-icon">${icon}</div>`;
+    grid.appendChild(cell);
   }
 };
 
+// ── 里程碑更新 ──
+const updateMilestones = (streak) => {
+  if (streak >= 7)  document.getElementById('ms7').classList.add('unlocked');
+  if (streak >= 14) document.getElementById('ms14').classList.add('unlocked');
+  if (streak >= 30) document.getElementById('ms30').classList.add('unlocked');
+};
+
+// ── 簽到成功特效 ──
+const celebrateCheckin = async () => {
+  playSound('sparkle');
+  vibrate([30, 20, 50]);
+  // 小紙花
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:400';
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx    = canvas.getContext('2d');
+  const pts    = Array.from({ length: 50 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20,
+    vy: 2 + Math.random() * 3,
+    vx: (Math.random() - 0.5) * 3,
+    size: 4 + Math.random() * 6,
+    color: ['#D4AF37','#B76E79','#E8B4A2','#FFF0F5'][Math.floor(Math.random() * 4)],
+    rot: Math.random() * Math.PI * 2,
+    rotV: (Math.random() - 0.5) * 0.1,
+    alpha: 1,
+  }));
+  let frame = 0;
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rotV;
+      if (frame > 80) p.alpha -= 0.025;
+      if (p.alpha <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle   = p.color;
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      ctx.restore();
+    });
+    frame++;
+    if (frame < 120) requestAnimationFrame(draw);
+    else canvas.remove();
+  };
+  requestAnimationFrame(draw);
+};
+
+// ── 載入狀態 ──
 const loadStatus = async () => {
   try {
     let url = `/api/play/check-in/${clientId}/status?`;
-    if (customerId) url += `customer_id=${customerId}`;
+    if (customerId)   url += `customer_id=${customerId}`;
     else if (channelUserId) url += `channel_user_id=${channelUserId}`;
-    const r = await fetch(url);
-    const data = await r.json();
-    checkedToday = data.checked_today;
-    document.getElementById('pointsBalance').textContent = data.points_balance || 0;
-    document.getElementById('streakDays').textContent = data.streak_days || 0;
-    document.getElementById('totalDays').textContent = data.total_days || 0;
-    renderCalendar(data.streak_days, data.total_days);
 
-    const btn = document.getElementById('checkinBtn');
+    const r    = await fetch(url);
+    const data = await r.json();
+
+    checkedToday = data.checked_today;
+    animatePoints(0, data.points_balance || 0);
+    document.getElementById('streakDays').textContent = data.streak_days || 0;
+    document.getElementById('totalDays').textContent  = data.total_days || 0;
+    renderCalendar(data.streak_days, data.total_days);
+    updateMilestones(data.streak_days || 0);
+
     if (data.checked_today) {
-      btn.textContent = '今日已簽到';
-      btn.disabled = true;
-      btn.className = 'btn done';
+      const btn = document.getElementById('checkinBtn');
+      btn.disabled  = true;
+      btn.textContent = '今日已簽到 ✓';
+      btn.className = 'btn-done';
     }
   } catch {}
 };
 
-const doCheckin = async () => {
+// ── 點數滾動動畫 ──
+const animatePoints = (from, to) => {
+  const el = document.getElementById('pointsBalance');
+  const dur = 600;
+  const start = performance.now();
+  const update = (now) => {
+    const t = Math.min((now - start) / dur, 1);
+    el.textContent = Math.floor(from + (to - from) * t);
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+};
+
+// ── 簽到 ──
+window.doCheckin = async () => {
   const btn = document.getElementById('checkinBtn');
   btn.disabled = true;
+  btn.textContent = '簽到中…';
+
   try {
     let url = `/api/play/check-in/${clientId}?`;
-    if (customerId) url += `customer_id=${customerId}`;
+    if (customerId)   url += `customer_id=${customerId}`;
     else if (channelUserId) url += `channel_user_id=${channelUserId}`;
 
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const r    = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     const data = await r.json();
 
     if (data.ok) {
       checkedToday = true;
-      document.getElementById('pointsBalance').textContent = data.points_balance || 0;
+      const oldBalance = parseInt(document.getElementById('pointsBalance').textContent, 10);
+      animatePoints(oldBalance, data.points_balance || 0);
       document.getElementById('streakDays').textContent = data.streak_days || 0;
-      document.getElementById('totalDays').textContent = data.total_days || 0;
+      document.getElementById('totalDays').textContent  = data.total_days || 0;
       renderCalendar(data.streak_days, data.total_days);
-      btn.textContent = '今日已簽到';
-      btn.className = 'btn done';
-      showMsg(`簽到成功！獲得 ${data.points_earned} 點`, 'ok');
+      updateMilestones(data.streak_days || 0);
+
+      btn.disabled  = true;
+      btn.textContent = '今日已簽到 ✓';
+      btn.className = 'btn-done';
+      showMsg(`簽到成功！獲得 ${data.points_earned} 點女神獎勵`, 'ok');
+      await celebrateCheckin();
     } else if (data.already_checked_today) {
-      btn.textContent = '今日已簽到';
-      btn.className = 'btn done';
+      btn.disabled  = true;
+      btn.textContent = '今日已簽到 ✓';
+      btn.className = 'btn-done';
       showMsg('今天已經簽到過了！', 'err');
     } else {
       btn.disabled = false;
-      showMsg('簽到失敗', 'err');
+      btn.textContent = '今日簽到 ✨';
+      btn.className = 'btn-gold';
+      showMsg('簽到失敗，請稍後再試', 'err');
     }
   } catch {
     btn.disabled = false;
+    btn.textContent = '今日簽到 ✨';
+    btn.className = 'btn-gold';
     showMsg('網路錯誤', 'err');
   }
 };
 
-// MGM：如果有 ref code，自動兌換
+// ── MGM ──
 const claimRef = async () => {
   if (!refCode) return;
   try {
     const body = { invite_code: refCode };
-    if (customerId) body.customer_id = parseInt(customerId, 10);
+    if (customerId)    body.customer_id = parseInt(customerId, 10);
     if (channelUserId) body.channel_user_id = channelUserId;
-    const r = await fetch('/api/play/referral/claim', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r    = await fetch('/api/play/referral/claim', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const data = await r.json();
     if (data.ok) showMsg(`邀請獎勵：+${data.invitee_bonus} 點！`, 'ok');
   } catch {}
 };
 
-// 邀請連結
 const loadInviteUrl = async () => {
   if (!customerId) return;
   try {
-    const r = await fetch(`/api/play/referral/${clientId}?customer_id=${customerId}`);
+    const r    = await fetch(`/api/play/referral/${clientId}?customer_id=${customerId}`);
     const data = await r.json();
     if (data.invite_url) {
       document.getElementById('inviteUrl').textContent = data.invite_url;
@@ -199,13 +538,13 @@ const loadInviteUrl = async () => {
   } catch {}
 };
 
-const copyInviteUrl = () => {
+window.copyInviteUrl = () => {
   const url = document.getElementById('inviteUrl').textContent;
-  navigator.clipboard.writeText(url).then(() => showMsg('連結已複製！', 'ok')).catch(() => {});
+  navigator.clipboard?.writeText(url).then(() => showMsg('連結已複製！', 'ok')).catch(() => {});
 };
 
 loadStatus();
-if (refCode) claimRef();
+if (refCode)    claimRef();
 if (customerId) loadInviteUrl();
 </script>
 </body>

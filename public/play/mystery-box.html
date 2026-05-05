@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>神秘禮物盒 — 梵森</title>
+<link rel="stylesheet" href="/play/_shared.css">
+<style>
+/* ── 神秘禮物盒專屬 ── */
+.mystery-page { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 40px; }
+
+/* 女神選擇說明 */
+.goddess-intro {
+  text-align: center;
+  padding: 0 24px 20px;
+  font-size: 14px;
+  color: var(--c-text-dim);
+  line-height: 1.7;
+}
+
+/* 禮物盒格子 */
+.boxes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  padding: 0 20px;
+  margin-bottom: 20px;
+}
+/* 第4、5個置中 */
+.boxes-grid .box-item:nth-child(4) {
+  grid-column: 1 / 2;
+  margin-left: 50%;
+}
+.boxes-grid .box-item:nth-child(5) {
+  grid-column: 2 / 3;
+  margin-left: -50%;
+}
+
+/* 禮物盒 item */
+.box-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.2s;
+}
+.box-item:active { transform: scale(0.93); }
+.box-item.selected { pointer-events: none; }
+.box-item.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
+
+/* 盒子本體 */
+.box-body {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin-bottom: 8px;
+  transition: all 0.3s;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+/* 蓋子 */
+.box-lid {
+  position: absolute;
+  top: -16px;
+  left: -4px;
+  width: calc(100% + 8px);
+  height: 22px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: bottom center;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
+}
+.box-ribbon {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 28px;
+  border-radius: 2px;
+  z-index: 3;
+  transition: transform 0.6s;
+}
+.box-ribbon::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -18px;
+  width: 48px;
+  height: 12px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+.box-icon {
+  font-size: 28px;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.3s;
+}
+.box-item:hover .box-icon { transform: scale(1.08); }
+
+/* 盒子名字 */
+.box-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.3;
+  color: rgba(255,255,255,0.7);
+  transition: color 0.3s;
+}
+.box-goddess {
+  font-size: 10px;
+  color: var(--c-text-dim);
+  text-align: center;
+  margin-top: 2px;
+}
+.box-item.selected .box-name { color: var(--c-gold); }
+
+/* 各女神配色 */
+/* Nyx — 黑 */
+.box-nyx .box-body { background: linear-gradient(145deg, #1a0a2e, #2d1b4e); border: 1px solid rgba(147,112,219,0.4); }
+.box-nyx .box-lid  { background: linear-gradient(135deg, #2d1b4e, #1a0a2e); border: 1px solid rgba(147,112,219,0.5); }
+.box-nyx .box-ribbon { background: rgba(147,112,219,0.6); }
+.box-nyx .box-ribbon::before { background: rgba(147,112,219,0.4); }
+.box-nyx .box-icon::after { content: '🌙'; }
+
+/* Aurora — 金 */
+.box-aurora .box-body { background: linear-gradient(145deg, #2a1a00, #3d2800); border: 1px solid rgba(212,175,55,0.5); box-shadow: 0 6px 20px rgba(212,175,55,0.2); }
+.box-aurora .box-lid  { background: linear-gradient(135deg, #D4AF37, #B8860B); }
+.box-aurora .box-ribbon { background: #D4AF37; }
+.box-aurora .box-ribbon::before { background: #D4AF37; }
+
+/* Aphrodite — 粉 */
+.box-aphrodite .box-body { background: linear-gradient(145deg, #2a0a15, #3d1525); border: 1px solid rgba(183,110,121,0.5); box-shadow: 0 6px 20px rgba(183,110,121,0.2); }
+.box-aphrodite .box-lid  { background: linear-gradient(135deg, #B76E79, #8B4050); }
+.box-aphrodite .box-ribbon { background: #E8B4A2; }
+.box-aphrodite .box-ribbon::before { background: #E8B4A2; }
+
+/* Iris — 彩 */
+.box-iris .box-body { background: linear-gradient(145deg, #0a1a2a, #152535); border: 1px solid rgba(100,180,220,0.4); }
+.box-iris .box-lid  { background: linear-gradient(135deg, #4facde, #00c9a7); }
+.box-iris .box-ribbon { background: #b4e8f0; }
+.box-iris .box-ribbon::before { background: linear-gradient(90deg, #ff9de2, #9de2ff); }
+
+/* Selene — 銀 */
+.box-selene .box-body { background: linear-gradient(145deg, #1a1a2a, #2a2a3e); border: 1px solid rgba(192,192,192,0.4); }
+.box-selene .box-lid  { background: linear-gradient(135deg, #C0C0C0, #808080); }
+.box-selene .box-ribbon { background: #E5E5E5; }
+.box-selene .box-ribbon::before { background: rgba(220,220,220,0.6); }
+
+/* 開蓋動畫 */
+.box-item.opening .box-lid {
+  transform: translateY(-30px) rotate(-25deg);
+}
+
+/* 光芒螺旋 */
+.box-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 10;
+}
+.box-burst.show {
+  animation: burst-spiral 1s ease-out forwards;
+}
+@keyframes burst-spiral {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0) rotate(0); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2) rotate(180deg); }
+}
+
+/* 結果展示區 */
+.reveal-area {
+  display: none;
+  padding: 0 20px;
+  animation: fade-in-up 0.6s ease;
+}
+.reveal-area.show { display: block; }
+
+.reveal-card {
+  background: linear-gradient(135deg, rgba(212,175,55,0.08), rgba(232,180,162,0.06));
+  border: 1px solid rgba(212,175,55,0.25);
+  border-radius: 20px;
+  padding: 24px 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.reveal-goddess-name {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  margin-bottom: 6px;
+  letter-spacing: 0.1em;
+  font-style: italic;
+}
+.reveal-product-icon { font-size: 56px; margin-bottom: 10px; }
+.reveal-product-name {
+  font-size: 22px;
+  font-weight: 800;
+  font-family: "PingFang TC", "Noto Serif TC", serif;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+.reveal-product-desc { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 12px; }
+.reveal-coupon {
+  display: inline-block;
+  font-size: 18px; font-weight: 800; color: #D4AF37;
+  letter-spacing: 2px;
+  background: rgba(212,175,55,0.1);
+  border: 1px dashed rgba(212,175,55,0.4);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+}
+.reveal-quote {
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  font-style: italic;
+  line-height: 1.6;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+/* 指示文字 */
+.pick-hint {
+  text-align: center;
+  font-size: 14px;
+  color: var(--c-text-dim);
+  padding: 0 20px;
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+/* 盒子懸浮光暈 */
+.box-item:hover .box-body { box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 20px rgba(212,175,55,0.15); }
+
+/* 浮動粒子 */
+.floating-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200;
+  border-radius: 50%;
+  animation: float-up 4s ease-out forwards;
+}
+</style>
+</head>
+<body class="faisem-game">
+<div class="mystery-page">
+
+  <div class="game-topbar">
+    <a href="/play/index.html" style="color:var(--c-text-dim);text-decoration:none;font-size:13px;">← 所有遊戲</a>
+    <span class="logo">梵森女神</span>
+    <span class="pts-badge" id="ptsBadge" style="display:none">✦ 0 點</span>
+  </div>
+
+  <div class="game-header">
+    <h1 id="actName">神秘禮物盒</h1>
+    <div class="sub" id="actDesc">五位女神親自為妳挑選禮物</div>
+  </div>
+
+  <div class="meta-bar" id="metaBar" style="display:none">
+    <span class="meta-tag gold" id="remainingTag" style="display:none"></span>
+    <span class="countdown-tag" id="countdownTag" style="display:none"></span>
+  </div>
+
+  <!-- LINE ID -->
+  <div style="padding: 0 20px 10px;" id="idInputWrap">
+    <input class="id-input" id="channelId" placeholder="LINE ID（選填）">
+    <button class="btn-gold" id="drawBtn" onclick="initDraw()">讓女神為妳選禮物</button>
+    <div class="err-msg" id="errMsg"></div>
+  </div>
+
+  <!-- 選盒提示 -->
+  <div class="pick-hint" id="pickHint" style="display:none">
+    選擇一個女神為妳準備的禮物盒
+  </div>
+
+  <!-- 禮物盒 -->
+  <div class="boxes-grid" id="boxesGrid" style="display:none">
+
+    <!-- Nyx 夜女神 -->
+    <div class="box-item box-nyx" id="box-0" onclick="openBox(0)">
+      <div class="box-body">
+        <div class="box-lid"></div>
+        <div class="box-ribbon"><div></div></div>
+        <div class="box-icon">🌙</div>
+      </div>
+      <div class="box-name">Nyx</div>
+      <div class="box-goddess">夜女神</div>
+    </div>
+
+    <!-- Aurora 晨曦女神 -->
+    <div class="box-item box-aurora" id="box-1" onclick="openBox(1)">
+      <div class="box-body">
+        <div class="box-lid"></div>
+        <div class="box-ribbon"><div></div></div>
+        <div class="box-icon">🌅</div>
+      </div>
+      <div class="box-name">Aurora</div>
+      <div class="box-goddess">晨曦女神</div>
+    </div>
+
+    <!-- Aphrodite 愛神 -->
+    <div class="box-item box-aphrodite" id="box-2" onclick="openBox(2)">
+      <div class="box-body">
+        <div class="box-lid"></div>
+        <div class="box-ribbon"><div></div></div>
+        <div class="box-icon">🌹</div>
+      </div>
+      <div class="box-name">Aphrodite</div>
+      <div class="box-goddess">愛神</div>
+    </div>
+
+    <!-- Iris 彩虹女神 -->
+    <div class="box-item box-iris" id="box-3" onclick="openBox(3)">
+      <div class="box-body">
+        <div class="box-lid"></div>
+        <div class="box-ribbon"><div></div></div>
+        <div class="box-icon">🌈</div>
+      </div>
+      <div class="box-name">Iris</div>
+      <div class="box-goddess">彩虹女神</div>
+    </div>
+
+    <!-- Selene 月神 -->
+    <div class="box-item box-selene" id="box-4" onclick="openBox(4)">
+      <div class="box-body">
+        <div class="box-lid"></div>
+        <div class="box-ribbon"><div></div></div>
+        <div class="box-icon">🌕</div>
+      </div>
+      <div class="box-name">Selene</div>
+      <div class="box-goddess">月神</div>
+    </div>
+
+  </div>
+
+  <!-- 結果展示 -->
+  <div class="reveal-area" id="revealArea">
+    <div class="reveal-card">
+      <div class="reveal-goddess-name" id="revealGoddess"></div>
+      <div class="reveal-product-icon" id="revealIcon">✨</div>
+      <div class="reveal-product-name" id="revealName"></div>
+      <div class="reveal-product-desc" id="revealDesc"></div>
+      <div class="reveal-coupon" id="revealCoupon" style="display:none"></div>
+      <div class="reveal-quote" id="revealQuote"></div>
+    </div>
+
+    <!-- 分享 -->
+    <div style="margin-top:16px;padding:0 0;" id="shareSection" style="display:none">
+      <div class="share-section" id="shareBtnsWrap" style="display:none">
+        <div style="text-align:center;margin-bottom:10px;" class="share-hint">分享女神的選擇，獲得 20 點獎勵</div>
+        <div class="share-btns">
+          <button class="share-btn share-line" onclick="doShare('line')">LINE</button>
+          <button class="share-btn share-ig" onclick="doShare('ig')">IG</button>
+          <button class="share-btn share-fb" onclick="doShare('fb')">FB</button>
+        </div>
+      </div>
+      <button class="btn-gold" style="margin-top:12px" onclick="closeResult()">收下女神的禮物</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { playSound, playWinSound, confetti, particleBurst, shareWin, openShareLink, vibrate, startCountdown, sleep } from '/play/_shared.js';
+
+const params   = new URLSearchParams(location.search);
+const actId    = params.get('activity_id');
+let activityInfo = {};
+let drawData   = null;
+let lastParticipationId = null;
+let chosenBox  = null;
+
+// ── 女神資料（5個禮物盒）──
+const GODDESSES = [
+  {
+    name: 'Nyx 夜女神',
+    product: '回聲 The Echo',
+    icon: '🌿',
+    desc: '神秘木質香，讓人想靠近的溫暖深度。',
+    quote: 'Nyx 為妳挑了「回聲」—\n是那種會讓人想多待一下的味道 ✨',
+    color: '#9370DB',
+  },
+  {
+    name: 'Aurora 晨曦女神',
+    product: '晨光 The Twilight',
+    icon: '🌅',
+    desc: '清新安心，不用用力也能讓人記住妳。',
+    quote: 'Aurora 為妳挑了「晨光」—\n不需要很強烈，也能讓人記住妳 ✨',
+    color: '#D4AF37',
+  },
+  {
+    name: 'Aphrodite 愛神',
+    product: '原罪 The Original Sin',
+    icon: '🌹',
+    desc: '自然吸引力，不是刻意，是剛好讓人注意到妳。',
+    quote: 'Aphrodite 為妳挑了「原罪」—\n不是刻意，是剛好讓人注意到妳 ✨',
+    color: '#B76E79',
+  },
+  {
+    name: 'Iris 彩虹女神',
+    product: '口噴香 白桃烏龍',
+    icon: '🍑',
+    desc: '近距離的安心感，靠近的時候更有自信。',
+    quote: 'Iris 為妳挑了「白桃烏龍口噴」—\n靠近的時候，妳會更有安全感 ✨',
+    color: '#64c8e8',
+  },
+  {
+    name: 'Selene 月神',
+    product: '口噴香 青柚',
+    icon: '🍋',
+    desc: '清新明亮，讓妳隨時保持那份清新感。',
+    quote: 'Selene 為妳挑了「青柚口噴」—\n讓妳隨時保持那份清新感 ✨',
+    color: '#C0C0C0',
+  },
+];
+
+// ── 載入活動 ──
+const loadActivity = async () => {
+  if (!actId) return;
+  try {
+    const r    = await fetch(`/api/play/${actId}/info`);
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('actName').textContent = data.error || '活動不存在';
+      document.getElementById('drawBtn').disabled = true;
+      return;
+    }
+    activityInfo = data;
+    document.getElementById('actName').textContent = data.name;
+    document.getElementById('actDesc').textContent = data.config?.description || '五位女神親自為妳挑選禮物';
+
+    if (data.remaining_winners != null) {
+      const t = document.getElementById('remainingTag');
+      t.textContent = `剩餘 ${data.remaining_winners} 個名額`;
+      t.style.display = '';
+      document.getElementById('metaBar').style.display = '';
+    }
+    if (data.time_remaining_seconds != null) {
+      const el = document.getElementById('countdownTag');
+      el.style.display = '';
+      document.getElementById('metaBar').style.display = '';
+      startCountdown(data.time_remaining_seconds, el, () => {
+        document.getElementById('drawBtn').disabled = true;
+      });
+    }
+  } catch {}
+};
+
+// ── 先呼叫抽獎 API，再讓使用者選盒子 ──
+window.initDraw = async () => {
+  const btn = document.getElementById('drawBtn');
+  btn.disabled = true;
+  btn.textContent = '女神正在準備…';
+
+  const channelId = document.getElementById('channelId').value.trim();
+
+  if (actId) {
+    try {
+      const r    = await fetch(`/api/play/${actId}/draw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_user_id: channelId || null }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        document.getElementById('errMsg').textContent = data.error || '抽獎失敗';
+        btn.disabled = false;
+        btn.textContent = '讓女神為妳選禮物';
+        return;
+      }
+      drawData = data;
+      lastParticipationId = data.participation_id;
+    } catch {
+      document.getElementById('errMsg').textContent = '網路錯誤';
+      btn.disabled = false;
+      btn.textContent = '讓女神為妳選禮物';
+      return;
+    }
+  }
+
+  playSound('sparkle');
+
+  // 顯示盒子
+  document.getElementById('idInputWrap').style.display = 'none';
+  document.getElementById('pickHint').style.display = '';
+  document.getElementById('boxesGrid').style.display = '';
+
+  // 入場動畫：逐一出現
+  const boxes = document.querySelectorAll('.box-item');
+  boxes.forEach((box, i) => {
+    box.style.opacity = '0';
+    box.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+      box.style.transition = 'all 0.4s ease';
+      box.style.opacity = '1';
+      box.style.transform = '';
+    }, i * 120);
+  });
+};
+
+// ── 開盒 ──
+window.openBox = async (idx) => {
+  if (chosenBox !== null) return;
+  chosenBox = idx;
+  playSound('click');
+  vibrate([20]);
+
+  const boxEl = document.getElementById(`box-${idx}`);
+  const goddess = GODDESSES[idx];
+
+  // 禁用其他盒子
+  document.querySelectorAll('.box-item').forEach((el, i) => {
+    if (i !== idx) el.classList.add('disabled');
+  });
+
+  // 選中效果
+  boxEl.classList.add('selected');
+
+  // 上升動畫
+  boxEl.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  boxEl.style.transform  = 'scale(1.15) translateY(-10px)';
+  await sleep(300);
+
+  // 開蓋
+  boxEl.classList.add('opening');
+  playSound('open');
+  await sleep(400);
+
+  // 光芒爆炸
+  const rect = boxEl.getBoundingClientRect();
+  const cx   = rect.left + rect.width / 2;
+  const cy   = rect.top + rect.height / 2;
+  particleBurst(cx, cy, 35);
+
+  await sleep(200);
+
+  // 螺旋粒子
+  spawnSpiralParticles(cx, cy, goddess.color);
+
+  if (drawData?.won || !actId) {
+    confetti(4500);
+    playWinSound(activityInfo.sound_effect || 'cheerful');
+    vibrate([50, 50, 100]);
+  } else {
+    playSound('sparkle');
+  }
+
+  await sleep(600);
+
+  // 展示結果
+  showReveal(goddess);
+};
+
+// ── 螺旋粒子 ──
+const spawnSpiralParticles = (x, y, color) => {
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement('div');
+    el.className = 'floating-particle';
+    const size = 4 + Math.random() * 8;
+    el.style.cssText = `
+      left: ${x}px; top: ${y}px;
+      width: ${size}px; height: ${size}px;
+      background: ${color};
+      opacity: 0.8;
+    `;
+    document.body.appendChild(el);
+    const angle = (i / 20) * Math.PI * 2 + Math.random() * 0.5;
+    const dist  = 40 + Math.random() * 80;
+    el.animate([
+      { transform: 'translate(-50%, -50%) scale(1) rotate(0deg)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist - 60}px)) scale(0) rotate(360deg)`, opacity: 0 },
+    ], { duration: 800 + Math.random() * 400, easing: 'ease-out', fill: 'forwards' }).onfinish = () => el.remove();
+  }
+};
+
+// ── 展示獎品 ──
+const showReveal = (goddess) => {
+  // 填入內容（使用從 API 拿到的獎品資訊，或使用女神預設）
+  let productName = goddess.product;
+  let productDesc = goddess.desc;
+  let couponCode  = null;
+  let productIcon = goddess.icon;
+
+  if (drawData?.prize) {
+    productName = drawData.prize.name || productName;
+    productDesc = drawData.prize.description || productDesc;
+    couponCode  = drawData.prize.coupon_code;
+  }
+
+  document.getElementById('revealGoddess').textContent = goddess.name + ' 為妳選了';
+  document.getElementById('revealIcon').textContent    = productIcon;
+  document.getElementById('revealName').textContent    = productName;
+  document.getElementById('revealDesc').textContent    = productDesc;
+  document.getElementById('revealQuote').textContent   = goddess.quote;
+
+  if (couponCode) {
+    const c = document.getElementById('revealCoupon');
+    c.textContent  = '優惠碼：' + couponCode;
+    c.style.display = '';
+  }
+
+  document.getElementById('revealArea').classList.add('show');
+
+  // 分享按鈕
+  const shareSection = document.getElementById('shareSection');
+  shareSection.style.display = '';
+  document.getElementById('shareBtnsWrap').style.display = activityInfo.share_bonus_enabled ? '' : 'none';
+
+  // 捲動到結果
+  setTimeout(() => {
+    document.getElementById('revealArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
+};
+
+// ── 分享 ──
+window.doShare = async (channel) => {
+  if (!lastParticipationId) return;
+  const channelId = document.getElementById('channelId')?.value.trim();
+  const goddess   = chosenBox !== null ? GODDESSES[chosenBox] : null;
+  const result    = await shareWin(lastParticipationId, channel, channelId || null);
+  openShareLink(channel, goddess ? goddess.quote.split('\n')[0] : '女神在梵森為我選了一份禮物！');
+  if (result.ok) {
+    document.querySelector('.share-hint').textContent = `已獲得 ${result.bonus_points} 點獎勵！`;
+  }
+};
+
+// ── 關閉/跳轉 ──
+window.closeResult = () => {
+  if (lastParticipationId && actId) {
+    location.href = `/feedback/activity.html?activity_id=${encodeURIComponent(actId)}&participation_id=${encodeURIComponent(lastParticipationId)}`;
+  }
+};
+
+loadActivity();
+</script>
+</body>
+</html>
