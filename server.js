@@ -1277,7 +1277,14 @@ app.use(requireAuth);
 // ─── B3. CSRF 驗證（requireAuth 之後，static 之前）───
 app.use(csrfMiddleware);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// 強制 JS/CSS/HTML 不 cache（防止舊版被瀏覽器抓）
+app.use((req, res, next) => {
+  if (/\.(js|css|html)$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), { etag: true, lastModified: true, maxAge: 0 }));
 
 // ─── Checkout 需登入路由 ───
 app.use('/api', checkoutRouter);
