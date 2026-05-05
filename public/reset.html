@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>客服中心 - 緊急重置</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif; padding: 40px 20px; max-width: 500px; margin: 0 auto; text-align: center; background: #F5F7FA; color: #1A1F25; }
+    h1 { font-size: 22px; margin-bottom: 16px; }
+    .status { background: white; border-radius: 12px; padding: 24px; margin: 16px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .step { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; text-align: left; }
+    .step .icon { width: 24px; }
+    .ok { color: #06C755; font-weight: 600; }
+    .pending { color: #FFA000; }
+    .btn { display: inline-block; padding: 12px 28px; background: #06C755; color: white; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 16px; border: 0; cursor: pointer; }
+    .btn:hover { background: #00B14F; }
+  </style>
+</head>
+<body>
+  <h1>🔄 客服中心緊急重置</h1>
+  <p style="color: #5C6670; font-size: 14px;">清除卡住的 Service Worker 與快取</p>
+  <div class="status">
+    <div class="step" id="step-sw"><span class="icon">⏳</span><span>登錄並關閉所有 Service Worker...</span></div>
+    <div class="step" id="step-cache"><span class="icon">⏳</span><span>清除所有 Cache...</span></div>
+    <div class="step" id="step-storage"><span class="icon">⏳</span><span>清除 Storage...</span></div>
+    <div class="step" id="step-done" style="display:none;"><span class="icon">🎉</span><span class="ok">完成！3 秒後自動跳回登入頁</span></div>
+  </div>
+  <a class="btn" href="/login.html" id="btn-back" style="display:none;">立即進客服中心</a>
+  <script>
+    (async () => {
+      const setOk = (id) => {
+        const el = document.getElementById(id);
+        if (el) { el.querySelector('.icon').textContent = '✅'; el.classList.add('ok'); }
+      };
+
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        setOk('step-sw');
+      } catch (e) {}
+
+      try {
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        setOk('step-cache');
+      } catch (e) {}
+
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        setOk('step-storage');
+      } catch (e) {}
+
+      document.getElementById('step-done').style.display = 'flex';
+      document.getElementById('btn-back').style.display = 'inline-block';
+      setTimeout(() => location.href = '/login.html', 3000);
+    })();
+  </script>
+</body>
+</html>

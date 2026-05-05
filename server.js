@@ -292,6 +292,17 @@ app.use('/login.html', express.static(path.join(__dirname, 'public', 'login.html
 app.use('/styles.css', express.static(path.join(__dirname, 'public', 'styles.css')));
 
 // ─── PWA 必要檔（manifest / SW / icons 必須在 requireAuth 之前）───
+// ─── 緊急重置頁（公開，不需登入）─── 清掉 SW + cache
+app.get('/reset', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Clear-Site-Data', '"cache", "cookies", "storage"');
+  res.sendFile(path.join(__dirname, 'public', 'reset.html'));
+});
+app.get('/reset.html', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'reset.html'));
+});
+
 app.get('/manifest.webmanifest', (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json');
   res.setHeader('Cache-Control', 'public, max-age=3600');
