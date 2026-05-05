@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日簽到</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .wrap { background: #fff; border-radius: 20px; padding: 28px 20px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 14px; margin-bottom: 20px; }
+  /* 點數卡片 */
+  .points-card { background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 14px; padding: 16px; color: #fff; margin-bottom: 20px; }
+  .points-card .label { font-size: 13px; opacity: 0.8; }
+  .points-card .value { font-size: 36px; font-weight: 700; margin: 4px 0; }
+  .streak-row { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+  .streak-item { background: rgba(255,255,255,0.2); border-radius: 10px; padding: 8px 14px; text-align: center; }
+  .streak-item .s-label { font-size: 11px; opacity: 0.8; }
+  .streak-item .s-val { font-size: 20px; font-weight: 700; }
+  /* 7天月曆 */
+  .calendar-title { font-size: 13px; color: #666; margin-bottom: 10px; font-weight: 500; }
+  .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; }
+  .day-cell { border-radius: 10px; padding: 8px 4px; font-size: 11px; }
+  .day-cell .day-label { color: #888; margin-bottom: 3px; }
+  .day-cell .day-icon { font-size: 20px; }
+  .day-cell.done { background: #e8f5e9; }
+  .day-cell.today { background: #fff3e0; border: 2px solid #f0c040; }
+  .day-cell.future { background: #f5f5f5; }
+  .day-cell.today .day-label { font-weight: 700; color: #333; }
+  /* 簽到按鈕 */
+  .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; transition: transform 0.1s; margin-bottom: 12px; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.done { background: #ccc; }
+  /* 邀請區 */
+  .invite-section { background: #f8f8fb; border-radius: 12px; padding: 16px; margin-top: 8px; }
+  .invite-section h3 { font-size: 15px; margin-bottom: 10px; }
+  .invite-url { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 12px; color: #555; word-break: break-all; margin-bottom: 8px; }
+  .btn-copy { width: 100%; padding: 10px; border: none; border-radius: 8px; background: #5856d6; color: #fff; font-size: 14px; cursor: pointer; }
+  .msg { padding: 10px; border-radius: 8px; font-size: 14px; margin: 10px 0; }
+  .msg.ok { background: #d1f7e0; color: #1b7c3e; }
+  .msg.err { background: #ffe0e0; color: #b00; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+  .points-rules { font-size: 12px; color: #888; text-align: left; margin-bottom: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>每日簽到</h1>
+  <div class="sub">連續簽到可獲得更多點數！</div>
+
+  <div id="msgEl" class="msg" style="display:none"></div>
+
+  <div class="points-card">
+    <div class="label">累積點數</div>
+    <div class="value" id="pointsBalance">0</div>
+    <div class="streak-row">
+      <div class="streak-item">
+        <div class="s-label">連續天數</div>
+        <div class="s-val" id="streakDays">0</div>
+      </div>
+      <div class="streak-item">
+        <div class="s-label">累積天數</div>
+        <div class="s-val" id="totalDays">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="calendar-title">本週簽到進度</div>
+  <div class="calendar" id="calendar"></div>
+
+  <div class="points-rules">
+    每日簽到：+5 點 | 連續 7 天：+20 點 | 連續 30 天：+100 點
+  </div>
+
+  <button class="btn" id="checkinBtn" onclick="doCheckin()">今天簽到</button>
+
+  <div class="invite-section" id="inviteSection" style="display:none">
+    <h3>邀請朋友 — 雙方各得 100 點</h3>
+    <div class="invite-url" id="inviteUrl">載入中…</div>
+    <button class="btn-copy" onclick="copyInviteUrl()">複製邀請連結</button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const clientId = params.get('client_id') || '1';
+const customerId = params.get('customer_id') || null;
+const channelUserId = params.get('channel_user_id') || null;
+const refCode = params.get('ref') || null;
+
+let checkedToday = false;
+
+const showMsg = (text, type) => {
+  const el = document.getElementById('msgEl');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+  el.style.display = '';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+};
+
+const renderCalendar = (streakDays, totalDays) => {
+  const cal = document.getElementById('calendar');
+  const days = ['日','一','二','三','四','五','六'];
+  const today = new Date().getDay();
+  cal.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const isToday = i === today;
+    const daysSinceToday = i - today;
+    const isPast = i < today;
+    const isDone = isPast || (isToday && checkedToday);
+    const cell = document.createElement('div');
+    cell.className = 'day-cell ' + (isDone ? 'done' : isToday ? 'today' : 'future');
+    cell.innerHTML = `<div class="day-label">${days[i]}</div><div class="day-icon">${isDone ? '✅' : isToday ? '📅' : '○'}</div>`;
+    cal.appendChild(cell);
+  }
+};
+
+const loadStatus = async () => {
+  try {
+    let url = `/api/play/check-in/${clientId}/status?`;
+    if (customerId) url += `customer_id=${customerId}`;
+    else if (channelUserId) url += `channel_user_id=${channelUserId}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    checkedToday = data.checked_today;
+    document.getElementById('pointsBalance').textContent = data.points_balance || 0;
+    document.getElementById('streakDays').textContent = data.streak_days || 0;
+    document.getElementById('totalDays').textContent = data.total_days || 0;
+    renderCalendar(data.streak_days, data.total_days);
+
+    const btn = document.getElementById('checkinBtn');
+    if (data.checked_today) {
+      btn.textContent = '今日已簽到';
+      btn.disabled = true;
+      btn.className = 'btn done';
+    }
+  } catch {}
+};
+
+const doCheckin = async () => {
+  const btn = document.getElementById('checkinBtn');
+  btn.disabled = true;
+  try {
+    let url = `/api/play/check-in/${clientId}?`;
+    if (customerId) url += `customer_id=${customerId}`;
+    else if (channelUserId) url += `channel_user_id=${channelUserId}`;
+
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await r.json();
+
+    if (data.ok) {
+      checkedToday = true;
+      document.getElementById('pointsBalance').textContent = data.points_balance || 0;
+      document.getElementById('streakDays').textContent = data.streak_days || 0;
+      document.getElementById('totalDays').textContent = data.total_days || 0;
+      renderCalendar(data.streak_days, data.total_days);
+      btn.textContent = '今日已簽到';
+      btn.className = 'btn done';
+      showMsg(`簽到成功！獲得 ${data.points_earned} 點`, 'ok');
+    } else if (data.already_checked_today) {
+      btn.textContent = '今日已簽到';
+      btn.className = 'btn done';
+      showMsg('今天已經簽到過了！', 'err');
+    } else {
+      btn.disabled = false;
+      showMsg('簽到失敗', 'err');
+    }
+  } catch {
+    btn.disabled = false;
+    showMsg('網路錯誤', 'err');
+  }
+};
+
+// MGM：如果有 ref code，自動兌換
+const claimRef = async () => {
+  if (!refCode) return;
+  try {
+    const body = { invite_code: refCode };
+    if (customerId) body.customer_id = parseInt(customerId, 10);
+    if (channelUserId) body.channel_user_id = channelUserId;
+    const r = await fetch('/api/play/referral/claim', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (data.ok) showMsg(`邀請獎勵：+${data.invitee_bonus} 點！`, 'ok');
+  } catch {}
+};
+
+// 邀請連結
+const loadInviteUrl = async () => {
+  if (!customerId) return;
+  try {
+    const r = await fetch(`/api/play/referral/${clientId}?customer_id=${customerId}`);
+    const data = await r.json();
+    if (data.invite_url) {
+      document.getElementById('inviteUrl').textContent = data.invite_url;
+      document.getElementById('inviteSection').style.display = '';
+    }
+  } catch {}
+};
+
+const copyInviteUrl = () => {
+  const url = document.getElementById('inviteUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => showMsg('連結已複製！', 'ok')).catch(() => {});
+};
+
+loadStatus();
+if (refCode) claimRef();
+if (customerId) loadInviteUrl();
+</script>
+</body>
+</html>
