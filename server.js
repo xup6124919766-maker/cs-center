@@ -1428,6 +1428,8 @@ app.get('/api/clients', requireAdmin, (_req, res) => {
       has_bv_api_key: !!(full?.bv_api_key_enc),
       bv_last_sync_at: full?.bv_last_sync_at || null,
       bv_order_count: bvOrderCount,
+      // 結帳連結設定
+      cart_url_template: full?.cart_url_template || null,
     };
   });
   res.json({ clients });

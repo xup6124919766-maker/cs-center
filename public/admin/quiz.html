@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>Quiz 統計 — 客服中心</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .stat-card .label { font-size: 12px; color: #888; margin-bottom: 6px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: #2C2018; }
+    .stat-card .sub { font-size: 12px; color: #888; margin-top: 4px; }
+
+    .section-title { font-size: 14px; font-weight: 700; color: #555; margin: 24px 0 12px; text-transform: uppercase; letter-spacing: .05em; }
+
+    .dist-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .dist-bar-name { font-size: 13px; color: #333; width: 180px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dist-bar-bg { flex: 1; background: #f0ece8; border-radius: 99px; height: 8px; }
+    .dist-bar-fill { height: 100%; background: #C8A882; border-radius: 99px; transition: width .4s; }
+    .dist-bar-cnt { font-size: 12px; color: #888; width: 36px; text-align: right; }
+
+    .sessions-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .sessions-table th { background: #f9f6f3; color: #888; font-weight: 600; padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
+    .sessions-table td { padding: 10px 14px; border-bottom: 1px solid #f5f5f5; color: #333; }
+    .sessions-table tr:last-child td { border: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-completed { background: #d4edda; color: #2d7a3a; }
+    .badge-in_progress { background: #fff3cd; color: #856404; }
+    .badge-abandoned { background: #f8d7da; color: #842029; }
+
+    .quiz-link-wrap { background: #f9f6f3; border-radius: 12px; padding: 18px; margin-bottom: 24px; }
+    .quiz-link-wrap label { font-size: 12px; color: #888; display: block; margin-bottom: 6px; }
+    .quiz-link { font-family: monospace; font-size: 13px; word-break: break-all; color: #C8A882; }
+    .copy-btn { font-size: 12px; padding: 4px 10px; background: #C8A882; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px; }
+
+    .filter-row { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+    .filter-row select, .filter-row input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="logo"><span>客服中心</span></div>
+  <div id="topbar-right">
+    <a href="/">Inbox</a>
+    <a href="/admin.html">設定</a>
+    <button id="logout-btn">登出</button>
+  </div>
+</div>
+
+<div style="max-width:960px;margin:0 auto;padding:24px 16px;">
+
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:4px;">選香 Quiz 統計</h1>
+  <p style="color:#888;font-size:13px;margin-bottom:20px;">互動式選香引導 → AI 推薦 → 轉換</p>
+
+  <!-- Quiz 連結產生器 -->
+  <div class="quiz-link-wrap">
+    <label>顧客 Quiz 入口連結（複製後發給顧客或貼到 LINE 貼文）</label>
+    <span class="quiz-link" id="quiz-link-display">載入中...</span>
+    <button class="copy-btn" onclick="copyQuizLink()">複製</button>
+    <div style="margin-top:10px;font-size:12px;color:#888;">
+      加 <code>?utm_source=kol名稱</code> 可追蹤來源，例如：
+      <code style="color:#C8A882" id="quiz-utm-example"></code>
+    </div>
+  </div>
+
+  <!-- 篩選 -->
+  <div class="filter-row">
+    <select id="filter-status">
+      <option value="">全部狀態</option>
+      <option value="in_progress">進行中</option>
+      <option value="completed">已完成</option>
+      <option value="abandoned">已廢棄</option>
+    </select>
+    <input type="date" id="filter-from" placeholder="開始日期" />
+    <input type="date" id="filter-to" placeholder="結束日期" />
+    <button class="btn btn-primary" onclick="loadData()">查詢</button>
+  </div>
+
+  <!-- 統計卡片 -->
+  <div class="stat-cards" id="stat-cards">
+    <div class="stat-card"><div class="label">總開始</div><div class="value" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="label">已完成</div><div class="value" id="stat-completed">—</div></div>
+    <div class="stat-card"><div class="label">完成率</div><div class="value" id="stat-rate">—</div><div class="sub">完成/開始</div></div>
+    <div class="stat-card"><div class="label">本月完成</div><div class="value" id="stat-this-month">—</div></div>
+  </div>
+
+  <!-- 推薦商品分布 -->
+  <div class="section-title">推薦商品分布</div>
+  <div id="product-dist">載入中...</div>
+
+  <!-- UTM 來源分布 -->
+  <div class="section-title">流量來源（UTM）</div>
+  <div id="utm-dist">載入中...</div>
+
+  <!-- sessions 列表 -->
+  <div class="section-title" style="margin-top:28px;">最新 Quiz 記錄</div>
+  <div style="overflow-x:auto;">
+    <table class="sessions-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>開始時間</th>
+          <th>來源</th>
+          <th>UTM</th>
+          <th>狀態</th>
+          <th>推薦商品</th>
+          <th>回答題數</th>
+        </tr>
+      </thead>
+      <tbody id="sessions-tbody">
+        <tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let myClientId = null;
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/login.html';
+});
+
+async function init() {
+  const me = await fetch('/api/me').then(r => r.json()).catch(() => ({}));
+  myClientId = me.client_id || (new URLSearchParams(location.search).get('client_id'));
+
+  const base = location.origin;
+  const link = `${base}/quiz/?client_id=${myClientId}`;
+  document.getElementById('quiz-link-display').textContent = link;
+  document.getElementById('quiz-utm-example').textContent = `${link}&utm_source=ig_bio`;
+
+  loadData();
+}
+
+function copyQuizLink() {
+  const link = document.getElementById('quiz-link-display').textContent;
+  navigator.clipboard.writeText(link).then(() => alert('已複製連結！'));
+}
+
+async function loadData() {
+  const status = document.getElementById('filter-status').value;
+  const fromVal = document.getElementById('filter-from').value;
+  const toVal   = document.getElementById('filter-to').value;
+  const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
+  const toTs   = toVal   ? new Date(toVal + 'T23:59:59').getTime() : null;
+
+  // 統計
+  const statsQs = new URLSearchParams({ client_id: myClientId });
+  if (fromTs) statsQs.set('from', fromTs);
+  if (toTs)   statsQs.set('to', toTs);
+
+  const stats = await fetch(`/api/quiz/stats?${statsQs}`).then(r => r.json()).catch(() => ({}));
+  document.getElementById('stat-total').textContent = stats.total ?? '—';
+  document.getElementById('stat-completed').textContent = stats.completed ?? '—';
+  document.getElementById('stat-rate').textContent = stats.completion_rate != null ? `${stats.completion_rate}%` : '—';
+
+  // 本月統計
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+  const monthStats = await fetch(`/api/quiz/stats?client_id=${myClientId}&from=${monthStart.getTime()}`).then(r => r.json()).catch(() => ({}));
+  document.getElementById('stat-this-month').textContent = monthStats.completed ?? '—';
+
+  // 推薦商品分布
+  renderDist('product-dist', stats.product_distribution || [], 'product');
+
+  // UTM 分布
+  renderDist('utm-dist', stats.utm_distribution || [], 'utm');
+
+  // Sessions 列表
+  const sessQs = new URLSearchParams({ client_id: myClientId, limit: 50 });
+  if (status) sessQs.set('status', status);
+  const { sessions = [] } = await fetch(`/api/quiz/sessions?${sessQs}`).then(r => r.json()).catch(() => ({ sessions: [] }));
+  renderSessions(sessions);
+}
+
+function renderDist(containerId, data, keyField) {
+  const el = document.getElementById(containerId);
+  if (!data.length) { el.innerHTML = '<div style="color:#aaa;font-size:13px;">無資料</div>'; return; }
+  const max = Math.max(...data.map(d => d.count), 1);
+  el.innerHTML = data.map(d => `
+    <div class="dist-bar">
+      <div class="dist-bar-name" title="${d[keyField]}">${d[keyField] || '—'}</div>
+      <div class="dist-bar-bg"><div class="dist-bar-fill" style="width:${Math.round(d.count/max*100)}%"></div></div>
+      <div class="dist-bar-cnt">${d.count}</div>
+    </div>
+  `).join('');
+}
+
+function renderSessions(sessions) {
+  const tbody = document.getElementById('sessions-tbody');
+  if (!sessions.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">尚無記錄</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sessions.map(s => {
+    let answers = {};
+    try { answers = JSON.parse(s.answers || '{}'); } catch {}
+    const answered = Object.keys(answers).length;
+    const statusBadge = {
+      completed: '<span class="badge badge-completed">已完成</span>',
+      in_progress: '<span class="badge badge-in_progress">進行中</span>',
+      abandoned: '<span class="badge badge-abandoned">已廢棄</span>',
+    }[s.status] || s.status;
+
+    return `
+      <tr>
+        <td>#${s.id}</td>
+        <td>${new Date(s.started_at).toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
+        <td>${s.source || '—'}</td>
+        <td>${s.utm_source || '—'}</td>
+        <td>${statusBadge}</td>
+        <td>${s.recommended_product || '—'}</td>
+        <td>${answered} / 7</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+init();
+</script>
+
+</body>
+</html>

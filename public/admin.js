@@ -361,6 +361,50 @@ const renderClientCard = (client) => {
         <span id="budget-status-${client.id}" style="font-size:12px;color:var(--muted);"></span>
       </div>
 
+      <!-- 結帳連結設定 -->
+      <div class="section-label" style="margin-top:20px;">結帳連結設定</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cart URL 模板（{sku} 或 {items} 占位符）</label>
+          <input type="text" id="${client.id}-cart-url-template"
+            placeholder="https://www.faisem.tw/products/{sku}"
+            value="${esc(client.cart_url_template || '')}"
+            style="font-family:monospace;font-size:12px;" />
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+            單商品用 {sku}，多商品購物車用 {items}（格式：sku1:qty1,sku2:qty2）
+          </div>
+        </div>
+      </div>
+      <div class="card-actions" style="margin-top:0;margin-bottom:8px;">
+        <button class="btn btn-secondary" style="font-size:12px;" onclick="saveCartTemplate(${client.id})">儲存 URL 模板</button>
+        <span id="cart-status-${client.id}" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+
+      <div class="section-label" style="margin-top:12px;">商品目錄</div>
+      <div id="product-catalog-list-${client.id}" style="margin-bottom:8px;font-size:13px;color:var(--muted);">載入中…</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>新增商品</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="${client.id}-new-sku" placeholder="SKU" style="width:120px;" />
+            <input type="text" id="${client.id}-new-name" placeholder="商品名稱" style="flex:1;min-width:140px;" />
+            <input type="number" id="${client.id}-new-price" placeholder="價格" style="width:90px;" />
+            <button class="btn btn-secondary" style="font-size:12px;" onclick="addProduct(${client.id})">+ 新增</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>匯入 CSV（格式：sku,名稱,價格,圖片URL,說明）</label>
+          <textarea id="${client.id}-catalog-csv" rows="3" placeholder="the_twilight,晨光 The Twilight,1280,,清新安心型" style="font-family:monospace;font-size:12px;resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div class="card-actions" style="margin-top:0;margin-bottom:8px;">
+        <button class="btn btn-secondary" style="font-size:12px;" onclick="importCatalogCsv(${client.id})">匯入 CSV</button>
+        <a href="/admin/quiz.html" target="_blank" class="btn btn-secondary" style="font-size:12px;text-decoration:none;">Quiz 統計</a>
+        <span id="catalog-status-${client.id}" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+
       <!-- 儲存按鈕 -->
       <div class="section-label" style="margin-top:16px;">其他操作</div>
       <div class="card-actions">
@@ -377,9 +421,108 @@ const renderClientCard = (client) => {
     tagInputInstances[`product-${client.id}`]   = makeTagInput(`wrap-product-${client.id}`,   productTags);
     // A4: 載入 AI 預算資料
     loadBudget(client.id);
+    // 結帳：載入商品目錄
+    loadProductCatalog(client.id);
   }, 0);
 
   return div;
+};
+
+// ─── 結帳：儲存 Cart URL Template ───
+window.saveCartTemplate = async (clientId) => {
+  const statusEl = document.getElementById(`cart-status-${clientId}`);
+  const template = document.getElementById(`${clientId}-cart-url-template`)?.value?.trim();
+  if (!template) { if (statusEl) statusEl.textContent = '請輸入模板'; return; }
+  if (!template.includes('{sku}') && !template.includes('{items}')) {
+    if (statusEl) statusEl.textContent = '需包含 {sku} 或 {items}';
+    toast('模板需包含 {sku} 或 {items}', 'error');
+    return;
+  }
+  if (statusEl) statusEl.textContent = '儲存中…';
+  try {
+    await api('PUT', '/api/checkout/template', { client_id: clientId, template });
+    if (statusEl) statusEl.textContent = '已儲存';
+    toast('Cart URL 模板已儲存', 'success');
+  } catch (e) {
+    if (statusEl) statusEl.textContent = `錯誤：${e.message}`;
+    toast(`儲存失敗：${e.message}`, 'error');
+  }
+};
+
+// ─── 結帳：載入商品目錄 ───
+const loadProductCatalog = async (clientId) => {
+  const el = document.getElementById(`product-catalog-list-${clientId}`);
+  if (!el) return;
+  try {
+    const data = await api('GET', `/api/products?client_id=${clientId}`);
+    const products = data.products || [];
+    if (!products.length) { el.innerHTML = '<span style="color:var(--muted)">尚無商品</span>'; return; }
+    el.innerHTML = `
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead><tr style="color:var(--muted)"><th style="text-align:left;padding:4px 8px;">SKU</th><th style="text-align:left;">名稱</th><th style="text-align:right;">價格</th></tr></thead>
+        <tbody>
+          ${products.map(p => `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:4px 8px;font-family:monospace;">${esc(p.sku)}</td>
+              <td style="padding:4px 8px;">${esc(p.name)}</td>
+              <td style="padding:4px 8px;text-align:right;">${p.price ? 'NT$ ' + Number(p.price).toLocaleString() : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    if (el) el.textContent = '載入失敗：' + e.message;
+  }
+};
+
+// ─── 結帳：新增單一商品 ───
+window.addProduct = async (clientId) => {
+  const sku = document.getElementById(`${clientId}-new-sku`)?.value?.trim();
+  const name = document.getElementById(`${clientId}-new-name`)?.value?.trim();
+  const priceVal = document.getElementById(`${clientId}-new-price`)?.value?.trim();
+  const statusEl = document.getElementById(`catalog-status-${clientId}`);
+
+  if (!sku || !name) { toast('SKU 和名稱為必填', 'error'); return; }
+
+  // 先拿現有商品
+  try {
+    const data = await api('GET', `/api/products?client_id=${clientId}`);
+    const products = data.products || [];
+    const existing = products.findIndex(p => p.sku === sku);
+    const newProduct = { sku, name, price: priceVal ? parseFloat(priceVal) : null, image_url: null, description: null };
+    if (existing >= 0) products[existing] = newProduct;
+    else products.push(newProduct);
+    await api('PUT', '/api/checkout/catalog', { client_id: clientId, products });
+    toast(`商品 ${name} 已新增/更新`, 'success');
+    if (statusEl) statusEl.textContent = '已更新';
+    // 清空欄位
+    ['new-sku','new-name','new-price'].forEach(id => {
+      const el = document.getElementById(`${clientId}-${id}`);
+      if (el) el.value = '';
+    });
+    loadProductCatalog(clientId);
+  } catch (e) {
+    toast(`新增失敗：${e.message}`, 'error');
+  }
+};
+
+// ─── 結帳：匯入 CSV ───
+window.importCatalogCsv = async (clientId) => {
+  const csv = document.getElementById(`${clientId}-catalog-csv`)?.value?.trim();
+  const statusEl = document.getElementById(`catalog-status-${clientId}`);
+  if (!csv) { toast('請貼入 CSV 內容', 'error'); return; }
+  if (statusEl) statusEl.textContent = '匯入中…';
+  try {
+    const result = await api('POST', '/api/checkout/catalog/import-csv', { client_id: clientId, csv });
+    toast(`匯入完成，共 ${result.imported} 筆`, 'success');
+    if (statusEl) statusEl.textContent = `已匯入 ${result.imported} 筆`;
+    if (result.errors?.length) console.warn('CSV 匯入警告：', result.errors);
+    loadProductCatalog(clientId);
+  } catch (e) {
+    if (statusEl) statusEl.textContent = `錯誤：${e.message}`;
+    toast(`匯入失敗：${e.message}`, 'error');
+  }
 };
 
 // ─── 展開/收合 ───

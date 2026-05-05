@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>梵森 — 找到最適合妳的香氛</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#C8A882" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #C8A882;
+      --gold-light: #E8D5C0;
+      --dark: #2C2018;
+      --muted: #7A6B5A;
+      --bg: #FBF7F3;
+      --white: #FFFFFF;
+      --radius: 16px;
+      --shadow: 0 4px 24px rgba(44,32,24,0.10);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 0 40px;
+    }
+
+    /* Header */
+    .quiz-header {
+      width: 100%;
+      background: var(--white);
+      border-bottom: 1px solid var(--gold-light);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .quiz-brand {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--dark);
+      letter-spacing: 0.05em;
+    }
+    .quiz-tagline {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    /* Progress */
+    .progress-wrap {
+      width: 100%;
+      max-width: 560px;
+      padding: 20px 24px 0;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: var(--gold-light);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+
+    /* Main container */
+    .quiz-container {
+      width: 100%;
+      max-width: 560px;
+      padding: 0 24px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Question card */
+    .question-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px 28px 28px;
+      margin-top: 24px;
+
+      /* 動畫 */
+      opacity: 0;
+      transform: translateX(40px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .question-card.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .question-card.exit-left {
+      opacity: 0;
+      transform: translateX(-60px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .q-number {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .q-text {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.5;
+      color: var(--dark);
+      margin-bottom: 24px;
+    }
+
+    /* Options */
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .option-btn {
+      background: var(--bg);
+      border: 2px solid var(--gold-light);
+      border-radius: 12px;
+      padding: 16px 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .option-btn:hover {
+      border-color: var(--gold);
+      background: #FFF8F2;
+      transform: translateY(-1px);
+    }
+    .option-btn.selected {
+      border-color: var(--gold);
+      background: #FFF0E0;
+      box-shadow: 0 0 0 3px rgba(200,168,130,0.20);
+    }
+    .option-emoji {
+      font-size: 28px;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .option-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
+      line-height: 1.4;
+    }
+
+    /* Next button */
+    .next-btn {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--gold);
+      color: var(--white);
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .next-btn.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .next-btn.active:hover {
+      background: #B8946E;
+      transform: translateY(-1px);
+    }
+
+    /* Loading screen */
+    #loading-screen {
+      display: none;
+      text-align: center;
+      padding: 60px 24px;
+    }
+    #loading-screen.visible { display: block; }
+
+    .loading-icon {
+      font-size: 48px;
+      animation: pulse 1.5s ease-in-out infinite;
+      display: block;
+      margin-bottom: 24px;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+    .loading-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+    .loading-sub {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* Result screen */
+    #result-screen {
+      display: none;
+      width: 100%;
+      max-width: 560px;
+      padding: 0 24px 40px;
+    }
+    #result-screen.visible { display: block; }
+
+    .result-opening {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-top: 20px;
+      box-shadow: var(--shadow);
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+      border-left: 4px solid var(--gold);
+    }
+
+    .result-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 24px 0 12px;
+    }
+
+    .product-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .product-img {
+      width: 80px;
+      height: 80px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: var(--gold-light);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+    .product-info { flex: 1; min-width: 0; }
+    .product-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 6px;
+    }
+    .product-reason {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+    .product-price {
+      font-size: 13px;
+      color: var(--gold);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .checkout-btn {
+      display: inline-block;
+      padding: 10px 18px;
+      background: var(--gold);
+      color: var(--white);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .checkout-btn:hover {
+      background: #B8946E;
+      transform: translateY(-1px);
+    }
+
+    .result-closing {
+      text-align: center;
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 20px;
+      line-height: 1.7;
+      padding: 0 8px;
+    }
+
+    /* Error */
+    .error-wrap {
+      text-align: center;
+      padding: 40px 24px;
+      color: var(--muted);
+    }
+    .error-wrap h2 { font-size: 18px; margin-bottom: 8px; color: var(--dark); }
+
+    @media (max-width: 400px) {
+      .options-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .option-btn { padding: 12px 8px; }
+      .q-text { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="quiz-header">
+  <span class="quiz-brand">FAISEM 梵森</span>
+  <span class="quiz-tagline">讓妳慢慢變成自己喜歡的樣子</span>
+</header>
+
+<div class="progress-wrap" id="progress-wrap" style="display:none;">
+  <div class="progress-info">
+    <span id="progress-label">第 1 題，共 7 題</span>
+    <span id="progress-pct">14%</span>
+  </div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="progress-fill" style="width:14%"></div>
+  </div>
+</div>
+
+<div class="quiz-container" id="quiz-container">
+  <!-- 題目卡片動態插入 -->
+  <div id="question-area"></div>
+</div>
+
+<!-- 載入中 -->
+<div id="loading-screen">
+  <span class="loading-icon">✨</span>
+  <div class="loading-text">梵森正在為妳挑選</div>
+  <div class="loading-sub">根據妳的回答，找出最適合妳的香氛...</div>
+</div>
+
+<!-- 推薦結果 -->
+<div id="result-screen">
+  <div class="result-opening" id="result-opening"></div>
+  <div class="result-title">為妳推薦</div>
+  <div id="products-list"></div>
+  <div class="result-closing" id="result-closing"></div>
+</div>
+
+<script>
+(async () => {
+  // ─── 取得 URL 參數 ───
+  const params = new URLSearchParams(location.search);
+  const clientId  = params.get('client_id') || '1';
+  const channelUserId = params.get('uid') || null;
+  const utm = params.get('utm') || params.get('utm_source') || null;
+  const source = params.get('source') || 'web';
+
+  let sessionToken = null;
+  let questions = [];
+  let currentIndex = 0;
+  let answers = {};
+  let currentCard = null;
+
+  // ─── 初始化：開始 quiz ───
+  try {
+    const r = await fetch('/api/quiz/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        channel_user_id: channelUserId,
+        source,
+        utm_source: utm,
+      }),
+    });
+    if (!r.ok) throw new Error('無法開始 quiz');
+    const data = await r.json();
+    sessionToken = data.session_token;
+    questions = data.questions;
+    document.getElementById('progress-wrap').style.display = '';
+    showQuestion(0);
+  } catch (e) {
+    document.getElementById('quiz-container').innerHTML =
+      `<div class="error-wrap"><h2>無法載入</h2><p>請稍後再試，或聯繫梵森客服。</p></div>`;
+    return;
+  }
+
+  // ─── 顯示題目 ───
+  function showQuestion(index, direction = 'right') {
+    const q = questions[index];
+    const area = document.getElementById('question-area');
+    const total = questions.length;
+
+    // 更新進度條
+    const pct = Math.round(((index + 1) / total) * 100);
+    document.getElementById('progress-label').textContent = `第 ${index + 1} 題，共 ${total} 題`;
+    document.getElementById('progress-pct').textContent = `${pct}%`;
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+
+    // 如果有舊卡，先退場
+    if (currentCard) {
+      const old = currentCard;
+      old.classList.add('exit-left');
+      setTimeout(() => old.remove(), 280);
+    }
+
+    // 建新卡
+    const card = document.createElement('div');
+    card.className = 'question-card';
+    card.innerHTML = `
+      <div class="q-number">第 ${index + 1} 題</div>
+      <div class="q-text">${q.question}</div>
+      <div class="options-grid" id="options-${index}"></div>
+      <button class="next-btn" id="next-btn">
+        ${index + 1 < total ? '下一題 →' : '看推薦結果 ✨'}
+      </button>
+    `;
+
+    const grid = card.querySelector(`#options-${index}`);
+    for (const opt of q.options) {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.dataset.value = opt.value;
+      btn.innerHTML = `<span class="option-emoji">${opt.emoji}</span><span class="option-label">${opt.label}</span>`;
+      btn.addEventListener('click', () => selectOption(card, q.id, opt.value));
+      grid.appendChild(btn);
+    }
+
+    // 如果已有答案，恢復選中狀態
+    if (answers[q.id]) {
+      const prevOpt = card.querySelector(`[data-value="${answers[q.id]}"]`);
+      if (prevOpt) {
+        prevOpt.classList.add('selected');
+        card.querySelector('#next-btn').classList.add('active');
+      }
+    }
+
+    card.querySelector('#next-btn').addEventListener('click', () => nextQuestion());
+
+    area.appendChild(card);
+    currentCard = card;
+    currentIndex = index;
+
+    // 觸發進場動畫
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => card.classList.add('visible'));
+    });
+  }
+
+  // ─── 選擇選項 ───
+  function selectOption(card, questionId, value) {
+    // 取消所有選中
+    card.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    // 選中當前
+    const btn = card.querySelector(`[data-value="${value}"]`);
+    if (btn) btn.classList.add('selected');
+    // 啟用下一步
+    card.querySelector('#next-btn').classList.add('active');
+    answers[questionId] = value;
+  }
+
+  // ─── 下一題 ───
+  async function nextQuestion() {
+    const q = questions[currentIndex];
+    const value = answers[q.id];
+    if (!value) return;
+
+    // 送出答案
+    try {
+      await fetch(`/api/quiz/${sessionToken}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_id: q.id, value }),
+      });
+    } catch {}
+
+    if (currentIndex + 1 < questions.length) {
+      showQuestion(currentIndex + 1);
+    } else {
+      // 所有題目完成，請求推薦
+      showLoading();
+      await requestRecommendation();
+    }
+  }
+
+  // ─── 載入中畫面 ───
+  function showLoading() {
+    document.getElementById('progress-wrap').style.display = 'none';
+    document.getElementById('quiz-container').style.display = 'none';
+    document.getElementById('loading-screen').classList.add('visible');
+  }
+
+  // ─── 取得 AI 推薦 ───
+  async function requestRecommendation() {
+    try {
+      const r = await fetch(`/api/quiz/${sessionToken}/recommend`, { method: 'POST' });
+      const data = await r.json();
+      if (!r.ok || !data.products) throw new Error(data.error || 'AI 推薦失敗');
+      showResult(data);
+    } catch (e) {
+      document.getElementById('loading-screen').classList.remove('visible');
+      document.getElementById('quiz-container').style.display = '';
+      document.getElementById('quiz-container').innerHTML =
+        `<div class="error-wrap"><h2>哎，出了點問題</h2><p>請重新整理頁面或聯繫梵森客服。</p><p style="font-size:12px;margin-top:8px;color:#999">${e.message}</p></div>`;
+    }
+  }
+
+  // ─── 顯示結果 ───
+  function showResult(data) {
+    document.getElementById('loading-screen').classList.remove('visible');
+
+    const screen = document.getElementById('result-screen');
+    document.getElementById('result-opening').textContent = data.opening || '根據妳的回答，我為妳精選了以下香氛。';
+
+    const list = document.getElementById('products-list');
+    list.innerHTML = '';
+
+    for (const p of data.products) {
+      const card = document.createElement('div');
+      card.className = 'product-card';
+
+      const imgContent = p.image_url
+        ? `<img src="${p.image_url}" alt="${p.name}" style="width:80px;height:80px;border-radius:10px;object-fit:cover;">`
+        : `<div class="product-img">🌸</div>`;
+
+      const priceHtml = p.price ? `<div class="product-price">NT$ ${p.price.toLocaleString()}</div>` : '';
+
+      card.innerHTML = `
+        ${imgContent}
+        <div class="product-info">
+          <div class="product-name">${p.name}</div>
+          <div class="product-reason">${p.reason}</div>
+          ${priceHtml}
+          <a href="${p.checkout_url}" target="_blank" rel="noopener" class="checkout-btn" onclick="trackClick('${p.sku}')">
+            立即了解 →
+          </a>
+        </div>
+      `;
+      list.appendChild(card);
+    }
+
+    document.getElementById('result-closing').textContent =
+      data.closing || '妳不用急著決定，這是屬於妳自己的步調。';
+
+    screen.classList.add('visible');
+  }
+
+  // ─── 追蹤點擊（簡單 beacon）───
+  window.trackClick = (sku) => {
+    try {
+      fetch(`/api/quiz/${sessionToken}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_id: '__checkout_click', value: sku }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  };
+
+})();
+</script>
+
+</body>
+</html>

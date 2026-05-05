@@ -205,6 +205,7 @@
           </svg>
         </button>
         <button class="btn btn-secondary" id="draft-btn" disabled title="AI 草擬" style="font-size:12px;padding:8px 12px;">AI 草擬</button>
+        <button class="btn btn-secondary" id="checkout-btn" disabled title="產生結帳連結" style="font-size:12px;padding:8px 12px;">📦 結帳</button>
       </div>
     </div>
   </div>
@@ -408,5 +409,228 @@
 <!-- socket.io client -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/app.js"></script>
+
+<!-- ─── 結帳連結 Modal ─── -->
+<div id="checkout-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeCheckoutModal()">
+</div>
+<style>
+#checkout-modal { display:none; }
+#checkout-modal.open { display:flex !important; }
+.checkout-modal-inner {
+  background:#fff;
+  border-radius:20px 20px 0 0;
+  width:100%;
+  max-width:540px;
+  max-height:80dvh;
+  overflow-y:auto;
+  padding:24px 20px 32px;
+  box-shadow:0 -4px 24px rgba(0,0,0,.12);
+}
+.checkout-modal-inner h3 { font-size:17px;font-weight:700;margin-bottom:16px; }
+.product-row { display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f5f5f5; }
+.product-row:last-child { border:none; }
+.product-row-name { flex:1;font-size:14px;color:#333;font-weight:500; }
+.product-row-price { font-size:12px;color:#888;margin-top:2px; }
+.qty-ctrl { display:flex;align-items:center;gap:8px; }
+.qty-btn { width:28px;height:28px;border:1px solid #ddd;border-radius:50%;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#333;line-height:1; }
+.qty-btn:hover { background:#f5f5f5; }
+.qty-num { width:24px;text-align:center;font-weight:700;font-size:14px; }
+.checkout-total { text-align:right;margin-top:12px;font-size:14px;color:#888; }
+.checkout-total strong { color:#333;font-size:16px; }
+.checkout-actions { display:flex;gap:12px;margin-top:16px; }
+.checkout-result-wrap { background:#f9f6f3;border-radius:10px;padding:14px;margin-top:16px;display:none; }
+.checkout-result-wrap.visible { display:block; }
+.checkout-result-url { font-family:monospace;font-size:12px;word-break:break-all;color:#C8A882;margin-bottom:8px; }
+</style>
+
+<script>
+// ─── 結帳連結 Modal ───
+let _checkoutProducts = [];
+let _checkoutQtys = {};
+let _currentConvIdForCheckout = null;
+
+document.getElementById('checkout-btn').addEventListener('click', openCheckoutModal);
+
+async function openCheckoutModal() {
+  const modal = document.getElementById('checkout-modal');
+  modal.innerHTML = '';
+  modal.classList.add('open');
+
+  const inner = document.createElement('div');
+  inner.className = 'checkout-modal-inner';
+  inner.innerHTML = `
+    <h3>📦 產生結帳連結</h3>
+    <div id="checkout-product-list">載入商品中...</div>
+    <div class="checkout-total" id="checkout-total" style="display:none;">
+      預估總額：<strong id="checkout-total-val">—</strong>
+    </div>
+    <div class="checkout-result-wrap" id="checkout-result-wrap">
+      <div style="font-size:12px;color:#888;margin-bottom:6px;">已產生連結（點複製後貼入訊息框）</div>
+      <div class="checkout-result-url" id="checkout-result-url"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" onclick="copyCheckoutLink()" style="font-size:12px;padding:6px 14px;">複製連結</button>
+        <button class="btn btn-secondary" onclick="pasteCheckoutToInput()" style="font-size:12px;padding:6px 14px;">貼入訊息框</button>
+      </div>
+    </div>
+    <div class="checkout-actions">
+      <button class="btn btn-primary" id="gen-checkout-btn" onclick="generateCheckout()" style="flex:1;" disabled>產生結帳連結</button>
+      <button class="btn btn-secondary" onclick="closeCheckoutModal()" style="padding:0 16px;">取消</button>
+    </div>
+  `;
+  modal.appendChild(inner);
+
+  // 取商品
+  try {
+    const r = await fetch('/api/products');
+    const data = await r.json();
+    _checkoutProducts = data.products || [];
+    _checkoutQtys = {};
+    renderCheckoutProducts();
+  } catch (e) {
+    document.getElementById('checkout-product-list').innerHTML =
+      '<div style="color:#888;font-size:13px;">無法載入商品，請確認設定。</div>';
+  }
+
+  // 取目前對話 ID
+  _currentConvIdForCheckout = window.currentConvId || null;
+}
+
+function renderCheckoutProducts() {
+  const list = document.getElementById('checkout-product-list');
+  if (!_checkoutProducts.length) {
+    list.innerHTML = '<div style="color:#888;font-size:13px;">尚未設定商品目錄，請至後台設定。</div>';
+    return;
+  }
+  list.innerHTML = _checkoutProducts.map((p, i) => `
+    <div class="product-row">
+      <div style="flex:1;">
+        <div class="product-row-name">${p.name}</div>
+        <div class="product-row-price">${p.price ? 'NT$ ' + Number(p.price).toLocaleString() : '價格待補'}</div>
+      </div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="adjustQty('${p.sku}', -1)">-</button>
+        <div class="qty-num" id="qty-${p.sku}">${_checkoutQtys[p.sku] || 0}</div>
+        <button class="qty-btn" onclick="adjustQty('${p.sku}', 1)">+</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function adjustQty(sku, delta) {
+  _checkoutQtys[sku] = Math.max(0, (_checkoutQtys[sku] || 0) + delta);
+  const el = document.getElementById(`qty-${sku}`);
+  if (el) el.textContent = _checkoutQtys[sku];
+  updateCheckoutTotal();
+}
+
+function updateCheckoutTotal() {
+  const items = getCheckoutItems();
+  const genBtn = document.getElementById('gen-checkout-btn');
+  if (genBtn) genBtn.disabled = items.length === 0;
+
+  let hasPrices = false, total = 0;
+  for (const item of items) {
+    const p = _checkoutProducts.find(prod => prod.sku === item.sku);
+    if (p && p.price) { hasPrices = true; total += p.price * item.qty; }
+  }
+
+  const totalEl = document.getElementById('checkout-total');
+  const totalVal = document.getElementById('checkout-total-val');
+  if (totalEl && totalVal) {
+    if (items.length > 0 && hasPrices) {
+      totalEl.style.display = '';
+      totalVal.textContent = 'NT$ ' + total.toLocaleString();
+    } else if (items.length > 0) {
+      totalEl.style.display = '';
+      totalVal.textContent = '（價格待補）';
+    } else {
+      totalEl.style.display = 'none';
+    }
+  }
+}
+
+function getCheckoutItems() {
+  return Object.entries(_checkoutQtys)
+    .filter(([, qty]) => qty > 0)
+    .map(([sku, qty]) => {
+      const p = _checkoutProducts.find(prod => prod.sku === sku);
+      return { sku, qty, price: p?.price || null };
+    });
+}
+
+let _lastCheckoutUrl = '';
+
+async function generateCheckout() {
+  const items = getCheckoutItems();
+  if (!items.length) return;
+
+  const genBtn = document.getElementById('gen-checkout-btn');
+  if (genBtn) { genBtn.disabled = true; genBtn.textContent = '產生中...'; }
+
+  try {
+    const body = { items };
+    if (_currentConvIdForCheckout) body.conversation_id = _currentConvIdForCheckout;
+
+    const r = await fetch('/api/checkout-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': getCsrfToken() },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || '產生失敗');
+
+    _lastCheckoutUrl = data.short_url || data.full_url;
+
+    const wrap = document.getElementById('checkout-result-wrap');
+    const urlEl = document.getElementById('checkout-result-url');
+    if (wrap && urlEl) {
+      urlEl.textContent = _lastCheckoutUrl;
+      wrap.classList.add('visible');
+    }
+  } catch (e) {
+    alert('產生失敗：' + e.message);
+  } finally {
+    if (genBtn) { genBtn.disabled = false; genBtn.textContent = '產生結帳連結'; }
+  }
+}
+
+function getCsrfToken() {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : '';
+}
+
+function copyCheckoutLink() {
+  navigator.clipboard.writeText(_lastCheckoutUrl).then(() => {
+    alert('已複製：' + _lastCheckoutUrl);
+  });
+}
+
+function pasteCheckoutToInput() {
+  const input = document.getElementById('msg-input');
+  if (input) {
+    input.value = (input.value ? input.value + '\n' : '') + _lastCheckoutUrl;
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+    closeCheckoutModal();
+  }
+}
+
+function closeCheckoutModal() {
+  const modal = document.getElementById('checkout-modal');
+  modal.classList.remove('open');
+}
+
+// ─── checkout-btn 需等對話載入才啟用 ───
+// 監聽 app.js 設定 currentConvId 的時機（hook 到 send-btn 啟用邏輯）
+const _origCheckoutObserver = new MutationObserver(() => {
+  const sendBtn = document.getElementById('send-btn');
+  const checkoutBtn = document.getElementById('checkout-btn');
+  if (sendBtn && checkoutBtn) {
+    checkoutBtn.disabled = sendBtn.disabled;
+  }
+});
+const _sendBtn = document.getElementById('send-btn');
+if (_sendBtn) _origCheckoutObserver.observe(_sendBtn, { attributes: true, attributeFilter: ['disabled'] });
+</script>
 </body>
 </html>
