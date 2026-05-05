@@ -311,11 +311,11 @@ const renderClientCard = (client) => {
       <div class="section-label">BV SHOP 整合</div>
       <div class="form-row">
         <div class="form-group">
-          <label>BV 商店 URL（例 https://shop.bvshop.tw/sxxx）</label>
-          <input type="text" id="${client.id}-bv-shop-url" placeholder="https://shop.bvshop.tw/sxxx" value="${esc(client.bv_shop_url || '')}" />
+          <label>BV API Host（預設 https://bvshop-manage.bvshop.tw 可空）</label>
+          <input type="text" id="${client.id}-bv-shop-url" placeholder="https://bvshop-manage.bvshop.tw" value="${esc(client.bv_shop_url || '')}" />
         </div>
         <div class="form-group">
-          <label>BV API Key（送出後加密存儲）</label>
+          <label>BV API Token（格式 id|hash，加密存儲）</label>
           <input type="password" id="${client.id}-bv-api-key" placeholder="留空 = 不更新" autocomplete="new-password" />
         </div>
       </div>
@@ -325,9 +325,14 @@ const renderClientCard = (client) => {
         ${client.bv_order_count ? `<span style="font-size:11px;color:var(--muted);">共 ${client.bv_order_count} 筆訂單</span>` : ''}
       </div>
       <div class="card-actions" style="margin-top:0;margin-bottom:8px;">
+        <button class="btn btn-secondary" style="font-size:12px;" onclick="bvTestToken(${client.id})">測試 Token</button>
         <button class="btn btn-secondary" style="font-size:12px;" onclick="saveBvShop(${client.id})">儲存 BV 設定</button>
         <button class="btn btn-secondary" style="font-size:12px;" onclick="bvSyncNow(${client.id})" ${!client.has_bv_api_key ? 'disabled title="請先設定 BV API Key"' : ''}>立即同步</button>
         <span id="bv-status-${client.id}" style="font-size:12px;color:var(--muted);"></span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;">
+        💡 <b>Webhook URL（給 BV 後台設定）</b>：<code style="background:#f5f5f5;padding:2px 4px;border-radius:3px;">${location.origin}/api/webhooks/bvshop/${client.id}</code><br>
+        BV 訂單建立/付款/出貨時自動 push，免 token，立刻有資料。
       </div>
 
       <!-- AI 預算（A4）-->
@@ -588,6 +593,27 @@ window.saveBvShop = async (clientId) => {
   } catch (e) {
     if (statusEl) statusEl.textContent = `錯誤：${e.message}`;
     toast(`BV SHOP 設定儲存失敗：${e.message}`, 'error');
+  }
+};
+
+// ─── BV token 即時驗證 ───
+window.bvTestToken = async (clientId) => {
+  const get = (id) => document.getElementById(id)?.value?.trim() ?? '';
+  const token = get(`${clientId}-bv-api-key`);
+  const baseUrl = get(`${clientId}-bv-shop-url`) || 'https://bvshop-manage.bvshop.tw';
+  if (!token) {
+    toast('請先在 BV API Token 欄位貼上 token', 'warning');
+    return;
+  }
+  const statusEl = document.getElementById(`bv-status-${clientId}`);
+  if (statusEl) statusEl.textContent = '驗證中…';
+  try {
+    const r = await api('POST', `/api/clients/${clientId}/bv-test-token`, { token, base_url: baseUrl });
+    if (statusEl) statusEl.textContent = r.message || (r.ok ? '✅ 通過' : '❌ 失敗');
+    toast(r.message || (r.ok ? 'Token 有效' : 'Token 無效'), r.ok ? 'success' : 'error');
+  } catch (e) {
+    if (statusEl) statusEl.textContent = `驗證失敗：${e.message}`;
+    toast(`驗證失敗：${e.message}`, 'error');
   }
 };
 

@@ -16,7 +16,7 @@ import { emitToClient } from '../lib/realtime.js';
 import { logger as rootLogger } from '../lib/logger.js';
 import { checkAndEnrollJourneyTrigger } from '../lib/journey.js';
 import { decrypt } from '../lib/crypto.js';
-import { syncOrdersForClient } from '../lib/bvshop.js';
+import { syncOrdersForClient, verifyToken as bvVerifyToken } from '../lib/bvshop.js';
 import { recordBilling } from '../lib/billing.js';
 
 const log = rootLogger.child({ module: 'routes/ecommerce' });
@@ -231,6 +231,102 @@ router.post('/clients/:id/bv-sync-now', async (req, res) => {
     log.error({ err: e.message, client_id: clientId }, 'BV 立即同步失敗');
     res.status(500).json({ error: '同步失敗：' + e.message });
   }
+});
+
+// ─── BV token 即時驗證（admin only）───
+// 用戶把 BV 給的 token 貼進來立刻打 BV 試，不用先存進 DB
+router.post('/clients/:id/bv-test-token', async (req, res) => {
+  if (req.session?.role !== 'admin') return res.status(403).json({ error: '需要 admin 權限' });
+  const token = String(req.body?.token || '').trim();
+  const baseUrl = String(req.body?.base_url || 'https://bvshop-manage.bvshop.tw').trim();
+  if (!token) return res.status(400).json({ error: '請提供 token' });
+  try {
+    const r = await bvVerifyToken(token, baseUrl);
+    res.json({
+      ok: r.ok,
+      status: r.status,
+      message: r.ok ? `✅ Token 有效（HTTP ${r.status}）` : `❌ ${r.status === 401 ? 'BV 拒絕：Unauthenticated（token 失效或被吊銷）' : 'HTTP ' + r.status + '：' + (r.error || '').slice(0, 200)}`,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── BV Webhook 入口（不需 outbound token，BV 推給我們）───
+// 業主在 BV 後台設定 Webhook URL = https://cs.sandian.work/api/webhooks/bvshop/{client_id}
+// 訂單建立/付款/出貨/送達 BV 主動 push 過來
+router.post('/webhooks/bvshop/:client_id', (req, res) => {
+  const clientId = parseInt(req.params.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: 'invalid client_id' });
+  const client = getClient(clientId);
+  if (!client) return res.status(404).json({ error: 'client not found' });
+
+  const event = req.body || {};
+  const eventType = event.event || event.type || event.action || 'unknown';
+  log.info({ client_id: clientId, event_type: eventType, has_order: !!event.order }, 'BV webhook 收到');
+
+  // 把訊息存進 audit_log，後台可以查
+  insertAuditLog({
+    client_id: clientId,
+    user_id: null,
+    action: 'bvshop.webhook',
+    target_type: 'order',
+    target_id: event.order?.id || event.order_id || null,
+    detail: JSON.stringify({ event_type: eventType, payload_keys: Object.keys(event) }),
+  });
+
+  // 把 order payload upsert 進 orders 表（如果有）
+  const order = event.order || event.data || event;
+  if (order && (order.id || order.order_id || order.order_no)) {
+    try {
+      const externalId = String(order.id || order.order_id || order.order_no);
+      const status = ({
+        pending: 'pending', unpaid: 'pending',
+        paid: 'paid', processing: 'paid',
+        shipped: 'shipped', delivered: 'delivered', completed: 'delivered',
+        cancelled: 'cancelled', canceled: 'cancelled',
+        refunded: 'refunded', refund: 'refunded',
+      }[(order.status || order.payment_status || order.order_status || '').toLowerCase()]) || 'pending';
+      const totalAmount = parseFloat(order.total_amount || order.total || order.grand_total || 0) || null;
+      const phone = order.customer_phone || order.phone || order.billing_phone || null;
+      const email = order.customer_email || order.email || order.billing_email || null;
+      const trackingNumber = order.tracking_number || order.logistics_no || order.shipment_no || null;
+      const carrier = order.carrier || order.logistics_company || order.courier || null;
+
+      let customerId = null;
+      if (phone) {
+        const f = db.prepare('SELECT id FROM customers WHERE client_id = ? AND phone = ? LIMIT 1').get(clientId, phone);
+        if (f) customerId = f.id;
+      }
+      if (!customerId && email) {
+        const f = db.prepare('SELECT id FROM customers WHERE client_id = ? AND email = ? LIMIT 1').get(clientId, email);
+        if (f) customerId = f.id;
+      }
+      const now = Date.now();
+      const orderedAt = order.created_at ? new Date(order.created_at).getTime() : now;
+
+      db.prepare(`
+        INSERT INTO orders
+          (client_id, customer_id, external_order_id, source, status, total_amount, currency,
+           items_json, tracking_number, carrier, ordered_at, created_at, updated_at)
+        VALUES (?, ?, ?, 'bvshop', ?, ?, 'TWD', ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(client_id, external_order_id) DO UPDATE SET
+          status          = excluded.status,
+          total_amount    = excluded.total_amount,
+          tracking_number = excluded.tracking_number,
+          carrier         = excluded.carrier,
+          updated_at      = excluded.updated_at
+      `).run(
+        clientId, customerId, externalId, status, totalAmount,
+        order.items ? JSON.stringify(order.items) : null,
+        trackingNumber, carrier, orderedAt, now, now
+      );
+    } catch (e) {
+      log.error({ err: e.message }, 'BV webhook upsert 失敗');
+    }
+  }
+
+  res.json({ ok: true, received: true });
 });
 
 // ─── P8：留言自動回覆紀錄查詢 ───
