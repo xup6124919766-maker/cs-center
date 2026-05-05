@@ -3,7 +3,9 @@
 //  版本：cs-center-v1
 // ═══════════════════════════════════════════════════
 
-const CACHE_NAME = 'cs-center-v1';
+const CACHE_NAME = 'cs-center-v2';
+// 更新到 v2 強制清掉所有舊 cache
+const NETWORK_FIRST_PATHS = ['/app.js', '/styles.css', '/index.html', '/admin.js'];
 const STATIC_CACHE = [
   '/index.html',
   '/login.html',
@@ -58,13 +60,26 @@ self.addEventListener('fetch', (e) => {
   // 跨來源不快取
   if (url.origin !== self.location.origin) return;
 
+  // 動態資源（HTML/JS/CSS）→ network-first，永遠拿最新版
+  const isDynamic = NETWORK_FIRST_PATHS.some(p => url.pathname === p || url.pathname.endsWith(p));
+  if (isDynamic) {
+    e.respondWith(
+      fetch(e.request).then(resp => {
+        if (resp.ok && resp.type === 'basic') {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        }
+        return resp;
+      }).catch(() => caches.match(e.request).then(c => c || new Response('', { status: 504 })))
+    );
+    return;
+  }
+
+  // 其他靜態資源（icons、字型）→ stale-while-revalidate
   e.respondWith(
     caches.match(e.request).then(cached => {
-      if (cached) return cached;
-
-      return fetch(e.request)
+      const fetchPromise = fetch(e.request)
         .then(resp => {
-          // 只快取成功的同源回應
           if (resp.ok && resp.type === 'basic') {
             const clone = resp.clone();
             caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
@@ -72,13 +87,13 @@ self.addEventListener('fetch', (e) => {
           return resp;
         })
         .catch(() => {
-          // 離線 fallback：HTML 頁面回傳 index.html（讓 app 顯示離線提示）
           if (e.request.headers.get('accept')?.includes('text/html')) {
             return caches.match('/index.html');
           }
-          // 其他資源回傳 504
           return new Response('', { status: 504, statusText: 'Offline' });
         });
+      // 有 cache 先回，背景同步更新；沒 cache 等網路
+      return cached || fetchPromise;
     })
   );
 });
