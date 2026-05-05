@@ -292,6 +292,19 @@ app.use('/login.html', express.static(path.join(__dirname, 'public', 'login.html
 app.use('/styles.css', express.static(path.join(__dirname, 'public', 'styles.css')));
 
 // ─── PWA 必要檔（manifest / SW / icons 必須在 requireAuth 之前）───
+// ─── 對所有 HTML 回應發 Clear-Site-Data，強制瀏覽器清掉舊 cache + SW ───
+// 暫時開啟，等使用者全部脫離舊 SW 後再關
+const _stuckUserGracePeriod = (req, res, next) => {
+  const isHtml = req.path === '/' || req.path.endsWith('.html') || req.path === '/index.html' || req.path === '/login.html';
+  if (isHtml) {
+    // 不清 cookies（保留 session），只清 cache + storage（含 SW）
+    res.setHeader('Clear-Site-Data', '"cache", "storage"');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  }
+  next();
+};
+app.use(_stuckUserGracePeriod);
+
 // ─── 緊急重置頁（公開，不需登入）─── 清掉 SW + cache
 app.get('/reset', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
