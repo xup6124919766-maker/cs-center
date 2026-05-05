@@ -2,24 +2,17 @@
 //  PWA：Service Worker 註冊 + 安裝橫幅 + Push 通知
 // ═══════════════════════════════════════════════════
 
-// ─── SW 註冊 ───
+// ─── SW 註冊 — **暫時停用** ───
+// 原 PWA SW 造成 reload 迴圈，先讓所有頁面走純網路
+// 主動卸載任何已存在的 SW
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(reg => {
-      console.log('[PWA] SW 註冊成功, scope:', reg.scope);
-
-      // 偵測新版本就緒 → 顯示橫幅（不自動 reload，讓使用者點才更新，避免跳頁）
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            _showUpdateBanner(newWorker);
-          }
-        });
-      });
-    }).catch(e => console.warn('[PWA] SW 註冊失敗:', e));
-  });
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister().catch(() => {}));
+  }).catch(() => {});
+  // 也清掉所有 cache
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
 }
 
 // ─── 更新橫幅 ───

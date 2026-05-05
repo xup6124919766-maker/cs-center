@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════
-//  梵森客服中心 — Service Worker 自毀版
-//  目的：清除所有舊 SW + cache，讓使用者拿到乾淨環境
-//  下次部署再恢復正常 SW
+//  梵森客服中心 — Service Worker 完全 No-Op 版
+//  目的：讓 SW 自我卸載，但**絕不**觸發 navigate / reload
+//  使用者按一次 F5 後就會脫離 SW 控制
 // ═══════════════════════════════════════════════════
 
 self.addEventListener('install', (e) => {
@@ -11,16 +11,12 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     Promise.all([
-      // 清掉所有 cache
       caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))),
-      // 接管所有 client
       self.clients.claim(),
     ])
       .then(() => self.registration.unregister())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then(clients => clients.forEach(c => c.navigate(c.url)))
       .catch(() => {})
   );
 });
 
-// 不攔截 fetch — 全部走原生網路（讓使用者直接拿到最新版）
+// 完全不攔截 fetch — 所有請求走原生網路
