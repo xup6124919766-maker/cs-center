@@ -2070,7 +2070,12 @@ app.post('/api/drafts/:id/reject', (req, res) => {
 // ─── AI 對話摘要（P2 #8 / P8 升級：結構化 JSON）───
 app.post('/api/conversations/:id/summarize', aiRateLimiter, async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const clientId = resolveClientId(req) ?? (req.body?.client_id ? parseInt(req.body.client_id, 10) : null);
+  let clientId = resolveClientId(req) ?? (req.body?.client_id ? parseInt(req.body.client_id, 10) : null);
+  // super admin 沒指定 → 從對話本身拿（多 client 隔離還是要驗，admin 可跨）
+  if (!clientId && req.session?.role === 'admin') {
+    const c = db.prepare('SELECT client_id FROM conversations WHERE id = ?').get(id);
+    clientId = c?.client_id || null;
+  }
   if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
   const conv = getConversation(id, clientId);
   if (!conv) return res.status(404).json({ error: '對話不存在或無權限' });
