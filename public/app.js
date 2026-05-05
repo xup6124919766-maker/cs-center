@@ -289,8 +289,11 @@ const api = async (method, path, body) => {
       'x-csrf-token': getCsrfToken(),
     },
   };
-  if (body !== undefined && state.currentClientId && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-    if (typeof body === 'object' && !Array.isArray(body) && body !== null && body.client_id === undefined) {
+  // super admin 自動補 client_id（POST/PUT/PATCH 即使沒 body 也補）
+  if (state.currentClientId && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+    if (body === undefined || body === null) {
+      body = { client_id: state.currentClientId };
+    } else if (typeof body === 'object' && !Array.isArray(body) && body.client_id === undefined) {
       body = { ...body, client_id: state.currentClientId };
     }
   }
@@ -1666,12 +1669,21 @@ const showSummary = (summaryInput, extra = {}) => {
   if (extra.action_required) {
     html += `<div style="margin-top:8px;font-size:12px;color:#e65100;font-weight:500;">📌 待辦：${esc(extra.action_required)}</div>`;
   }
+  const btnStyle = "font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-pill);cursor:pointer;background:var(--bg);font-family:var(--font-sans);";
   html += `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-    <button onclick="triggerManualSummarize()" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-pill);cursor:pointer;background:var(--bg);font-family:var(--font-sans);">重新摘要</button>
-    <button onclick="navigator.clipboard.writeText(${JSON.stringify(summaryText)}).then(()=>showToast('已複製','success'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-pill);cursor:pointer;background:var(--bg);font-family:var(--font-sans);">複製</button>
+    <button id="sum-rebtn" style="${btnStyle}">重新摘要</button>
+    <button id="sum-copybtn" style="${btnStyle}">複製</button>
   </div>`;
 
   content.innerHTML = html;
+  // 用 addEventListener 避免 onclick 引號衝突
+  const reBtn = content.querySelector('#sum-rebtn');
+  const copyBtn = content.querySelector('#sum-copybtn');
+  if (reBtn) reBtn.onclick = () => triggerManualSummarize();
+  if (copyBtn) copyBtn.onclick = () => {
+    navigator.clipboard.writeText(summaryText).then(() => showToast('已複製', 'success'))
+      .catch(() => showToast('複製失敗', 'error'));
+  };
   content.classList.remove('hidden');
   const chevron = $('#summary-chevron');
   if (chevron) chevron.textContent = '▲';
