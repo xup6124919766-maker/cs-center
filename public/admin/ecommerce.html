@@ -57,6 +57,55 @@
 
 <div class="container">
   <div id="msg"></div>
+
+  <!-- 廢棄購物車挽回統計 -->
+  <div class="card" style="background:linear-gradient(135deg,#fff5f5,#fff);border:1px solid #ffd0d0">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0;font-size:16px;color:#e03">廢棄購物車挽回</h3>
+      <span style="font-size:12px;color:#888">最新數據</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="abandonStats">
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">今日已提醒</div>
+        <div id="statTodayReminders" style="font-size:22px;font-weight:800;color:#e03">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">本月提醒</div>
+        <div id="statMonthReminders" style="font-size:22px;font-weight:800;color:#ff6b35">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">已轉換</div>
+        <div id="statConverted" style="font-size:22px;font-weight:800;color:#34c759">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">挽回率</div>
+        <div id="statConvRate" style="font-size:22px;font-weight:800;color:#5856d6">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 物流通知統計 -->
+  <div class="card" style="background:linear-gradient(135deg,#f0f4ff,#fff);border:1px solid #c8d8ff">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0;font-size:16px;color:#5856d6">物流通知統計</h3>
+      <span style="font-size:12px;color:#888">LINE push 計費追蹤</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">今日推送</div>
+        <div id="statTodayPush" style="font-size:22px;font-weight:800;color:#5856d6">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">本月推送</div>
+        <div id="statMonthPush" style="font-size:22px;font-weight:800;color:#007aff">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">本月成本估算</div>
+        <div id="statMonthCost" style="font-size:22px;font-weight:800;color:#ff9f0a">—</div>
+      </div>
+    </div>
+  </div>
+
   <div class="tabs">
     <div class="tab active" onclick="switchTab('orders', this)">訂單管理</div>
     <div class="tab" onclick="switchTab('cart', this)">廢棄購物車</div>
@@ -217,6 +266,30 @@ const sendReminder = async (id) => {
 };
 
 loadOrders();
+loadAbandonStats();
+loadPushStats();
+
+// ── 廢棄購物車挽回統計 ──
+const loadAbandonStats = async () => {
+  try {
+    const data = await api('GET', '/api/cart-abandon/stats');
+    document.getElementById('statTodayReminders').textContent = data.today_reminders ?? '—';
+    document.getElementById('statMonthReminders').textContent = data.month_reminders ?? '—';
+    document.getElementById('statConverted').textContent = data.total_converted ?? '—';
+    document.getElementById('statConvRate').textContent =
+      data.conversion_rate_pct != null ? data.conversion_rate_pct + '%' : '—';
+  } catch {}
+};
+
+// ── 物流通知統計（order_notify stats endpoint）──
+const loadPushStats = async () => {
+  try {
+    const data = await api('GET', '/api/order-notify/stats');
+    document.getElementById('statTodayPush').textContent = data.today_push ?? '—';
+    document.getElementById('statMonthPush').textContent = data.month_push ?? '—';
+    document.getElementById('statMonthCost').textContent = data.cost_note ?? '—';
+  } catch {}
+};
 </script>
 </body>
 </html>

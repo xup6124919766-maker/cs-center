@@ -79,10 +79,7 @@
       <div><label>類型</label>
         <select id="f_type">
           <option value="wheel">🎡 大轉盤</option>
-          <option value="scratch">💎 刮刮樂</option>
-          <option value="gacha">🥚 扭蛋</option>
-          <option value="memory">🃏 翻牌記憶（新）</option>
-          <option value="mystery-box">🎁 神秘禮物盒（新）</option>
+          <option value="mystery-box">🎁 神秘禮物盒</option>
         </select>
       </div>
     </div>
@@ -159,8 +156,8 @@ const api = async (method, path, body) => {
   return r.json();
 };
 
-const typeLabel = { wheel: '大轉盤', scratch: '刮刮樂', gacha: '扭蛋', memory: '翻牌記憶', 'mystery-box': '神秘禮物盒' };
-const typeEmoji = { wheel: '🎡', scratch: '💎', gacha: '🥚', memory: '🃏', 'mystery-box': '🎁' };
+const typeLabel = { wheel: '大轉盤', 'mystery-box': '神秘禮物盒' };
+const typeEmoji = { wheel: '🎡', 'mystery-box': '🎁' };
 
 const renderList = () => {
   const tbody = document.getElementById('listBody');

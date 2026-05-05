@@ -64,6 +64,28 @@
     <button class="btn btn-primary" onclick="openCreate()">+ 新增旅程</button>
   </div>
 
+  <!-- 補貨提醒統計 -->
+  <div class="card" id="replenishStats" style="background:linear-gradient(135deg,#f5f4ff,#fff);border:1px solid #e0deff">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0;font-size:16px;color:#5856d6">補貨提醒旅程（replenish_due）</h3>
+      <span id="replenishStatus" class="badge" style="font-size:12px">載入中…</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">目前進行中</div>
+        <div id="replenishRunning" style="font-size:24px;font-weight:800;color:#5856d6">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">累計加入</div>
+        <div id="replenishEnrolled" style="font-size:24px;font-weight:800;color:#34c759">—</div>
+      </div>
+      <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">完成率</div>
+        <div id="replenishRate" style="font-size:24px;font-weight:800;color:#ff9f0a">—</div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <table>
       <thead><tr><th>名稱</th><th>觸發類型</th><th>狀態</th><th>加入數</th><th>完成數</th><th>操作</th></tr></thead>
@@ -259,6 +281,36 @@ const viewRuns = async (id) => {
 };
 
 load();
+loadReplenishStats();
+
+// ── 補貨提醒統計 ──
+const loadReplenishStats = async () => {
+  const data = await api('GET', '/api/journeys');
+  const jList = data.journeys || [];
+  const replenish = jList.find(j => j.trigger_type === 'replenish_due');
+  if (!replenish) {
+    document.getElementById('replenishStatus').textContent = '尚未建立';
+    document.getElementById('replenishStatus').style.background = '#e5e5ea';
+    document.getElementById('replenishStatus').style.color = '#666';
+    return;
+  }
+
+  const statusEl = document.getElementById('replenishStatus');
+  statusEl.textContent = replenish.status === 'active' ? '運行中' : replenish.status;
+  statusEl.className = 'badge badge-' + (replenish.status === 'active' ? 'active' : 'draft');
+
+  document.getElementById('replenishEnrolled').textContent = replenish.total_enrolled ?? 0;
+
+  try {
+    const statsData = await api('GET', `/api/journeys/${replenish.id}/stats`);
+    const runningRow = (statsData.status_breakdown || []).find(r => r.status === 'running');
+    document.getElementById('replenishRunning').textContent = runningRow?.count ?? 0;
+    document.getElementById('replenishRate').textContent = (statsData.completion_rate_pct ?? 0) + '%';
+  } catch {
+    document.getElementById('replenishRunning').textContent = '—';
+    document.getElementById('replenishRate').textContent = '—';
+  }
+};
 </script>
 </body>
 </html>

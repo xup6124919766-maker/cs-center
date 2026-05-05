@@ -59,6 +59,36 @@ const JOURNEY_TEMPLATES = {
       { type: 'send_message', config: { content: '生日快樂！祝您生日平安喜樂！我們準備了一份生日優惠碼 BDAY15，享 85 折，今天使用有效！' } },
     ],
   },
+  replenish: {
+    name: '補貨提醒',
+    description: '在客戶用完前主動關心，自然帶補貨機會',
+    trigger_type: 'replenish_due',
+    trigger_config: {},
+    steps_json: [
+      {
+        type: 'send_message',
+        config: {
+          content: 'Hi {customer.name} 🌙 妳上次選的香味，是不是快用完了呢？\n\n最近天氣轉換、心情跟著變，想為自己準備新的一片嗎？回覆「我想看看」我給妳推薦這次最適合妳的味道。',
+        },
+      },
+      { type: 'wait', config: { duration_ms: 259200000 } }, // 3 天
+      {
+        type: 'condition',
+        config: {
+          check: 'replied_in_journey',
+          if_true_continue: false,
+          if_false_continue: true,
+        },
+      },
+      {
+        type: 'send_message',
+        config: {
+          content: '{customer.name}～有時候香水變淡，是時候迎接新心情了 ✨\n\n我為妳整理 3 款最適合妳這週狀態的選擇，附上首購點數加碼，要看看嗎？',
+        },
+      },
+      { type: 'add_tag', config: { tag: '回購提醒已寄送' } },
+    ],
+  },
 };
 
 const router = Router();

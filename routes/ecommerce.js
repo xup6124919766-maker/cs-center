@@ -17,6 +17,7 @@ import { logger as rootLogger } from '../lib/logger.js';
 import { checkAndEnrollJourneyTrigger } from '../lib/journey.js';
 import { decrypt } from '../lib/crypto.js';
 import { syncOrdersForClient } from '../lib/bvshop.js';
+import { recordBilling } from '../lib/billing.js';
 
 const log = rootLogger.child({ module: 'routes/ecommerce' });
 
@@ -152,35 +153,62 @@ router.put('/orders/:id', (req, res) => {
     });
   }
 
-  // P8：出貨通知 — 狀態從 paid → shipped 時自動發 LINE push 訊息給顧客
-  if (fields.status === 'shipped' && order.status !== 'shipped' && order.customer_id) {
+  // ─── 物流全鏈 LINE 主動通知 ───
+  const STATUS_MESSAGES = {
+    paid:      '🌸 收到您的訂單囉～我們準備出貨中，預計 1-2 個工作天 ✨',
+    shipped:   '📦 您的訂單已出貨！{tracking}預計 2-3 天送達，有問題隨時跟我說 💝',
+    delivered: '🎁 您的訂單已送達{location}～記得去取貨喔！\n\n有任何問題隨時跟我說 💝',
+  };
+
+  if (
+    fields.status &&
+    fields.status !== order.status &&
+    STATUS_MESSAGES[fields.status] &&
+    order.customer_id
+  ) {
     Promise.resolve().then(async () => {
       try {
         const client = getClient(clientId);
         if (!client?.line_access_token_enc) {
-          log.info({ order_id: id }, '出貨通知：LINE token 未設定，略過');
+          log.warn({ order_id: id, status: fields.status }, '物流通知：LINE token 未設定，略過');
           return;
         }
 
-        // 找顧客的 LINE channel_user_id
         const chRow = db.prepare(
           "SELECT channel_user_id FROM customer_channels WHERE customer_id = ? AND channel = 'line' LIMIT 1"
         ).get(order.customer_id);
         if (!chRow?.channel_user_id) {
-          log.info({ order_id: id, customer_id: order.customer_id }, '出貨通知：找不到 LINE user_id，略過');
+          log.warn({ order_id: id, customer_id: order.customer_id }, '物流通知：找不到 LINE user_id，略過');
           return;
         }
 
         const { sendText: lineSend } = await import('../lib/line.js');
         const accessToken = decrypt(client.line_access_token_enc);
-        const tracking = fields.tracking_number || order.tracking_number;
-        const trackingText = tracking ? `\n物流追蹤號：${tracking}` : '';
-        const msgText = `您的訂單 ${order.external_order_id} 已出貨！${trackingText}\n有任何問題請隨時告知，感謝您的支持。`;
 
-        await lineSend(accessToken, chRow.channel_user_id, msgText);
-        log.info({ order_id: id, customer_id: order.customer_id, line_user: chRow.channel_user_id }, 'P8 出貨通知已發送');
+        let msgText = STATUS_MESSAGES[fields.status];
+
+        if (fields.status === 'shipped') {
+          const tracking = fields.tracking_number || order.tracking_number;
+          msgText = msgText.replace('{tracking}', tracking ? `物流追蹤號：${tracking}，` : '');
+        } else if (fields.status === 'delivered') {
+          const addr = order.shipping_address;
+          msgText = msgText.replace('{location}', addr ? `（${addr}）` : '');
+        }
+
+        await lineSend(accessToken, chRow.channel_user_id, msgText, clientId);
+
+        // 計費追蹤
+        recordBilling({
+          client_id: clientId,
+          channel: 'line',
+          api_type: 'push',
+          recipient_count: 1,
+          metadata: JSON.stringify({ source: 'order_status', order_id: id, status: fields.status }),
+        });
+
+        log.info({ order_id: id, status: fields.status, customer_id: order.customer_id }, '物流通知已發送');
       } catch (e) {
-        log.error({ err: e.message, order_id: id }, 'P8 出貨通知發送失敗');
+        log.error({ err: e.message, order_id: id, status: fields.status }, '物流通知發送失敗');
       }
     });
   }
@@ -280,6 +308,47 @@ router.get('/cart-events', (req, res) => {
   res.json({ cart_events: events });
 });
 
+// ─── 廢棄購物車挽回統計 ───
+router.get('/cart-abandon/stats', (req, res) => {
+  const clientId = resolveClientId(req) ?? (req.query.client_id ? parseInt(req.query.client_id, 10) : null);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+
+  const now = Date.now();
+  const todayStart = now - (now % 86400000);
+  const monthStart = new Date(new Date().setDate(1)).setHours(0, 0, 0, 0);
+
+  const total = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM cart_events WHERE client_id = ? AND event_type = 'abandoned'"
+  ).get(clientId)?.cnt ?? 0;
+
+  const todayReminders = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM cart_events WHERE client_id = ? AND event_type = 'abandoned' AND reminder_sent_at >= ?"
+  ).get(clientId, todayStart)?.cnt ?? 0;
+
+  const monthReminders = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM cart_events WHERE client_id = ? AND event_type = 'abandoned' AND reminder_sent_at >= ?"
+  ).get(clientId, monthStart)?.cnt ?? 0;
+
+  const converted = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM cart_events WHERE client_id = ? AND event_type = 'abandoned' AND converted_at IS NOT NULL AND reminder_count > 0"
+  ).get(clientId)?.cnt ?? 0;
+
+  const reminded = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM cart_events WHERE client_id = ? AND event_type = 'abandoned' AND reminder_count > 0"
+  ).get(clientId)?.cnt ?? 0;
+
+  const conversionRate = reminded > 0 ? Math.round(converted / reminded * 100) : 0;
+
+  res.json({
+    total_abandoned: total,
+    today_reminders: todayReminders,
+    month_reminders: monthReminders,
+    total_reminded: reminded,
+    total_converted: converted,
+    conversion_rate_pct: conversionRate,
+  });
+});
+
 // ─── 廢棄購物車 → 觸發提醒 ───
 router.post('/cart-events/:id/send-reminder', async (req, res) => {
   const id = parseInt(req.params.id, 10);
@@ -311,6 +380,39 @@ router.post('/cart-events/:id/send-reminder', async (req, res) => {
 
   log.info({ cart_event_id: id, customer_id: event.customer_id }, 'cart reminder sent (stub)');
   res.json({ ok: true, note: 'LINE/FB 實際送出為 stub，等 token 後啟用' });
+});
+
+// ─── 物流通知統計 ───
+router.get('/order-notify/stats', (req, res) => {
+  const clientId = resolveClientId(req) ?? (req.query.client_id ? parseInt(req.query.client_id, 10) : null);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+
+  const now = Date.now();
+  const todayStart = now - (now % 86400000);
+  const monthStart = new Date(new Date().setDate(1)).setHours(0, 0, 0, 0);
+
+  const todayPush = db.prepare(`
+    SELECT COUNT(*) AS cnt FROM message_billing
+    WHERE client_id = ? AND api_type = 'push' AND channel = 'line'
+      AND metadata LIKE '%order_status%' AND created_at >= ?
+  `).get(clientId, todayStart)?.cnt ?? 0;
+
+  const monthPush = db.prepare(`
+    SELECT COUNT(*) AS cnt FROM message_billing
+    WHERE client_id = ? AND api_type = 'push' AND channel = 'line'
+      AND metadata LIKE '%order_status%' AND created_at >= ?
+  `).get(clientId, monthStart)?.cnt ?? 0;
+
+  // LINE Light 方案：前 200 封免費，超出每封約 NT$0.3
+  const extraMessages = Math.max(0, monthPush - 200);
+  const monthCostEstimate = extraMessages > 0 ? Math.round(extraMessages * 0.3) : 0;
+
+  res.json({
+    today_push: todayPush,
+    month_push: monthPush,
+    month_cost_estimate_twd: monthCostEstimate,
+    cost_note: monthCostEstimate === 0 ? '免費額度內' : `NT$ ${monthCostEstimate}（估算）`,
+  });
 });
 
 export default router;

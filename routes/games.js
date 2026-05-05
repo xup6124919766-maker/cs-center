@@ -85,8 +85,9 @@ router.post('/', (req, res) => {
   } = req.body || {};
 
   if (!name || !type) return res.status(400).json({ error: '缺少 name 或 type' });
-  if (!['wheel', 'scratch', 'gacha'].includes(type)) {
-    return res.status(400).json({ error: 'type 必須是 wheel/scratch/gacha' });
+  // 管理介面只允許建立主推的 2 種遊戲，避免誤建其他類型
+  if (!['wheel', 'mystery-box'].includes(type)) {
+    return res.status(400).json({ error: 'type 目前只支援 wheel（大轉盤）或 mystery-box（神秘禮物盒）' });
   }
   if (!Array.isArray(prizes) || prizes.length === 0) {
     return res.status(400).json({ error: 'prizes 必須是非空陣列' });

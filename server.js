@@ -49,7 +49,7 @@ import { classifyMessage, summarizeConversation } from './lib/intent.js';
 import { ensureGameSchema, getActivity, getActivityPrizes, drawPrize } from './lib/game.js';
 import { ensureBroadcastSchema, runScheduledBroadcasts } from './lib/broadcast.js';
 import { ensureAbTestSchema } from './lib/ab_test.js';
-import { ensureEcommerceSchema } from './lib/ecommerce.js';
+import { ensureEcommerceSchema, runCartAbandonReminders } from './lib/ecommerce.js';
 import { ensureRichMenuSchema } from './lib/richmenu.js';
 import { ensureJourneySchema, runScheduledJourneys, checkAndEnrollJourneyTrigger } from './lib/journey.js';
 
@@ -199,6 +199,55 @@ try {
   const vansen = db.prepare("SELECT id FROM clients WHERE name = 'vansen'").get();
   if (vansen) seedDefaultRules(vansen.id);
 } catch {}
+
+// ─── 補貨提醒旅程 seed（各業主啟動時自動建立，若尚不存在）───
+try {
+  const allClients = db.prepare('SELECT id FROM clients').all();
+  const REPLENISH_STEPS = JSON.stringify([
+    {
+      type: 'send_message',
+      config: {
+        content: 'Hi {customer.name} 🌙 妳上次選的香味，是不是快用完了呢？\n\n最近天氣轉換、心情跟著變，想為自己準備新的一片嗎？回覆「我想看看」我給妳推薦這次最適合妳的味道。',
+      },
+    },
+    { type: 'wait', config: { duration_ms: 259200000 } },
+    {
+      type: 'condition',
+      config: {
+        check: 'replied_in_journey',
+        if_true_continue: false,
+        if_false_continue: true,
+      },
+    },
+    {
+      type: 'send_message',
+      config: {
+        content: '{customer.name}～有時候香水變淡，是時候迎接新心情了 ✨\n\n我為妳整理 3 款最適合妳這週狀態的選擇，附上首購點數加碼，要看看嗎？',
+      },
+    },
+    { type: 'add_tag', config: { tag: '回購提醒已寄送' } },
+  ]);
+  for (const c of allClients) {
+    const exists = db.prepare(
+      "SELECT id FROM journeys WHERE client_id = ? AND trigger_type = 'replenish_due' LIMIT 1"
+    ).get(c.id);
+    if (!exists) {
+      const now = Date.now();
+      db.prepare(`
+        INSERT INTO journeys (client_id, name, description, trigger_type, trigger_config, status, steps_json, total_enrolled, total_completed, created_at, updated_at)
+        VALUES (?, ?, ?, 'replenish_due', '{}', 'active', ?, 0, 0, ?, ?)
+      `).run(
+        c.id,
+        '補貨提醒',
+        '在客戶用完前主動關心，自然帶補貨機會',
+        REPLENISH_STEPS, now, now
+      );
+      rootLogger.info({ client_id: c.id }, '補貨提醒旅程 seed 完成');
+    }
+  }
+} catch (e) {
+  rootLogger.warn({ err: e.message }, '補貨提醒旅程 seed 失敗，略過');
+}
 
 const log = rootLogger.child({ module: 'server' });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -3746,6 +3795,12 @@ httpServer.listen(PORT, () => {
       return { processed: 1, success: 1 };
     });
   }, 24 * 60 * 60 * 1000);
+
+  // ─── 購物車棄單提醒排程（每 10 分鐘）───
+  setInterval(() => {
+    wrapScheduler('cart_abandon_reminders', runCartAbandonReminders);
+  }, 10 * 60 * 1000);
+  log.info('cart abandon reminder scheduler started (every 10 min)');
 
   // ─── CLV 排程（每天 04:00 UTC）───
   scheduleClvJob();
