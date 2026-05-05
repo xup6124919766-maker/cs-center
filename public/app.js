@@ -767,6 +767,8 @@ const init = async () => {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 130) + 'px';
     $('#send-btn').disabled = !el.value.trim() || !state.activeConvId;
+    // 品牌教練 debounce 評分（僅 reply 模式）
+    if (state.inputMode !== 'note') scheduleBrandCoachScore();
   });
 
   // AI 草擬按鈕
@@ -1300,6 +1302,13 @@ const selectConversation = async (conv) => {
   $('#msg-input').disabled = false;
   $('#msg-input').placeholder = '輸入訊息… (Enter 送出，Shift+Enter 換行)';
 
+  // 切換對話時清除品牌教練評分
+  hideBrandCoachBar();
+  state._bcLastScore   = null;
+  state._bcLastRewrite = null;
+  // 載入業主門檻（async，背景）
+  if (state.currentClientId) loadBrandCoachThreshold(state.currentClientId).catch(() => {});
+
   // 啟用操作按鈕
   $('#draft-btn').disabled = false;
   $('#transfer-btn').disabled = false;
@@ -1786,8 +1795,38 @@ const sendMessage = async () => {
     return;
   }
   const input  = $('#msg-input');
-  const content = input.value.trim();
+  let content = input.value.trim();
   if (!content || !state.activeConvId) return;
+
+  // ─── 品牌教練門檻確認 ───
+  if (state.inputMode !== 'note' && state._bcLastScore != null && state._bcThreshold > 0) {
+    if (state._bcLastScore < state._bcThreshold) {
+      const rewrite = state._bcLastRewrite || '';
+      const msg = `這則訊息梵森魂只有 ${state._bcLastScore} 分（門檻 ${state._bcThreshold} 分）。${rewrite ? '\n\nAI 改寫建議：\n' + rewrite : ''}\n\n要使用 AI 改寫的版本嗎？`;
+      const choice = await new Promise(resolve => {
+        // 三選一 dialog（使用自製 modal 避免瀏覽器限制）
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `
+          <div style="background:#fff;border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+            <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:12px;">梵森魂檢測</div>
+            <div style="font-size:13px;color:#444;white-space:pre-wrap;line-height:1.6;margin-bottom:16px;">${esc(msg)}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+              <button id="bc-cancel" style="padding:7px 16px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">取消</button>
+              <button id="bc-send-original" style="padding:7px 16px;border:1px solid #aaa;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">直接送出</button>
+              ${rewrite ? '<button id="bc-send-rewrite" style="padding:7px 16px;border:none;border-radius:6px;background:#5856d6;color:#fff;cursor:pointer;font-size:13px;">使用改寫版本</button>' : ''}
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#bc-cancel').onclick = () => { overlay.remove(); resolve('cancel'); };
+        overlay.querySelector('#bc-send-original').onclick = () => { overlay.remove(); resolve('original'); };
+        if (rewrite) overlay.querySelector('#bc-send-rewrite').onclick = () => { overlay.remove(); resolve('rewrite'); };
+      });
+      if (choice === 'cancel') return;
+      if (choice === 'rewrite' && rewrite) content = rewrite;
+    }
+  }
 
   state._sending = true;
   const btn = $('#send-btn');
@@ -1812,6 +1851,10 @@ const sendMessage = async () => {
     await api('POST', `/api/conversations/${state.activeConvId}/reply`, { content });
     input.value = '';
     input.style.height = 'auto';
+    // 品牌教練：送出後存 DB 評分（有改寫採用也標記）
+    hideBrandCoachBar();
+    state._bcLastScore = null;
+    state._bcLastRewrite = null;
     // 送出後隱藏建議區（等下一則顧客訊息再觸發）
     const sugBar = $('#suggestion-bar');
     if (sugBar) sugBar.style.display = 'none';
@@ -2329,3 +2372,133 @@ document.addEventListener('keydown', (e) => {
 // ─── Start ───
 init();
 initCustomerEdit();
+
+// ═══════════════════════════════════════════
+//  品牌教練 AI 模式
+// ═══════════════════════════════════════════
+
+let _bcDebounceTimer = null;
+let _bcCoachVisible = true;   // 使用者可手動隱藏
+state._bcLastScore   = null;
+state._bcLastRewrite = null;
+state._bcThreshold   = 0;     // 由 client 設定拉取（0 = 不強制）
+
+// 取得業主品牌教練門檻
+const loadBrandCoachThreshold = async (clientId) => {
+  if (!clientId) return;
+  try {
+    const data = await api('GET', `/api/clients/${clientId}/config`);
+    state._bcThreshold = data?.client?.brand_coach_threshold || 0;
+  } catch {}
+};
+
+// debounce 觸發評分
+const scheduleBrandCoachScore = () => {
+  if (_bcDebounceTimer) clearTimeout(_bcDebounceTimer);
+  const content = $('#msg-input')?.value?.trim();
+  if (!content || content.length < 10) {
+    // 太短就隱藏評分條
+    hideBrandCoachBar();
+    return;
+  }
+  _bcDebounceTimer = setTimeout(() => runBrandCoachScore(content), 1500);
+};
+
+// 執行即時評分（save:false，只預覽）
+const runBrandCoachScore = async (content) => {
+  if (!state.activeConvId || !content) return;
+  try {
+    const result = await api('POST', '/api/brand-coach/score', {
+      content,
+      conversation_id: state.activeConvId,
+      save: false,
+    });
+    if (result.ok) {
+      state._bcLastScore   = result.brand_score;
+      state._bcLastRewrite = result.suggested_rewrite;
+      renderBrandCoachBar(result);
+    }
+  } catch (e) {
+    // 靜默失敗：評分失敗不影響主流程
+    console.warn('[brand-coach] score failed:', e.message);
+  }
+};
+
+// 渲染評分條
+const renderBrandCoachBar = (result) => {
+  const bar = $('#brand-coach-bar');
+  if (!bar || !_bcCoachVisible) return;
+
+  const score = result.brand_score;
+  const scoreEl = $('#bc-score-num');
+  const badgeEl = $('#bc-score-badge');
+  const feedbackEl = $('#bc-feedback');
+  const applyBtn = $('#bc-apply-btn');
+
+  if (scoreEl) scoreEl.textContent = score;
+
+  // 顏色：90+ 綠 / 70-89 黃 / <70 紅
+  let color, bgColor, label;
+  if (score >= 90) {
+    color = '#2e7d32'; bgColor = '#e8f5e9'; label = '很梵森';
+  } else if (score >= 70) {
+    color = '#e65100'; bgColor = '#fff3e0'; label = '尚可';
+  } else {
+    color = '#c62828'; bgColor = '#ffebee'; label = '需改進';
+  }
+
+  if (badgeEl) {
+    badgeEl.textContent = label;
+    badgeEl.style.background = bgColor;
+    badgeEl.style.color = color;
+    badgeEl.style.border = `1px solid ${color}33`;
+  }
+
+  if (scoreEl) scoreEl.style.color = color;
+
+  if (feedbackEl) {
+    feedbackEl.textContent = result.feedback || '';
+  }
+
+  if (applyBtn) {
+    applyBtn.style.display = result.suggested_rewrite ? 'inline-block' : 'none';
+  }
+
+  bar.style.display = '';
+};
+
+// 隱藏評分條
+const hideBrandCoachBar = () => {
+  const bar = $('#brand-coach-bar');
+  if (bar) bar.style.display = 'none';
+};
+
+// toggle 顯示/隱藏
+window.toggleBrandCoach = () => {
+  _bcCoachVisible = !_bcCoachVisible;
+  const bar = $('#brand-coach-bar');
+  const btn = $('#bc-coach-toggle');
+  if (!_bcCoachVisible) {
+    hideBrandCoachBar();
+  } else if (state._bcLastScore != null) {
+    bar.style.display = '';
+  }
+  if (btn) btn.textContent = _bcCoachVisible ? '隱藏' : '顯示';
+};
+
+// 採用改寫
+window.applyCoachRewrite = () => {
+  const rewrite = state._bcLastRewrite;
+  if (!rewrite) return;
+  const input = $('#msg-input');
+  if (input) {
+    input.value = rewrite;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 130) + 'px';
+    $('#send-btn').disabled = false;
+    // 標記採用（若有 score id 則呼叫 API，這裡是即時評分無 id 故跳過）
+    showToast('已套用 AI 改寫建議', 'success');
+    // 重新評分套用後的內容
+    scheduleBrandCoachScore();
+  }
+};

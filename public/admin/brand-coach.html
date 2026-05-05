@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>品牌教練 — 梵森魂分析</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: #fff; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .kpi-val { font-size: 28px; font-weight: 700; color: #5856d6; }
+  .kpi-lbl { font-size: 13px; color: #888; margin-top: 4px; }
+  /* 趨勢圖 — 純 CSS */
+  .trend-wrap { display: flex; align-items: flex-end; gap: 3px; height: 80px; padding: 4px 0; }
+  .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .trend-bar { width: 100%; border-radius: 3px 3px 0 0; transition: height 0.4s; min-height: 2px; }
+  .trend-lbl { font-size: 9px; color: #aaa; text-align: center; }
+  /* 歷史列表 */
+  .score-item { border-bottom: 1px solid #f0f0f0; padding: 12px 0; cursor: pointer; }
+  .score-item:last-child { border-bottom: none; }
+  .score-item:hover { background: #f8f8ff; }
+  .score-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .score-badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .score-content { font-size: 13px; color: #444; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 80px; overflow: hidden; }
+  .score-content.expanded { max-height: none; }
+  .score-feedback { font-size: 12px; color: #5856d6; margin-top: 6px; background: #f5f4ff; padding: 6px 10px; border-radius: 6px; }
+  .score-rewrite { font-size: 12px; color: #2e7d32; background: #e8f5e9; padding: 6px 10px; border-radius: 6px; margin-top: 4px; white-space: pre-wrap; display: none; }
+  /* 採用率統計 */
+  .stat-bar-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+  .stat-bar-track { flex: 1; height: 14px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+  .stat-bar-fill { height: 100%; background: #5856d6; border-radius: 4px; transition: width 0.5s; }
+  /* 低分警示 */
+  .warn-item { background: #fff8f8; border-left: 3px solid #e53935; padding: 10px 14px; border-radius: 0 8px 8px 0; margin-bottom: 8px; cursor: pointer; }
+  .warn-item:hover { background: #fff0f0; }
+  /* 空狀態 */
+  .empty-state { text-align: center; color: #aaa; padding: 32px; font-size: 14px; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin/brand-coach.html" class="active">品牌教練</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2 style="margin:0 0 4px;">品牌教練 — 梵森魂分析</h2>
+      <div style="font-size:13px;color:#888;">查看自己的梵森語調評分歷史與 AI 建議</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="setRange(7)"  class="range-btn active" style="padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#5856d6;color:#fff;cursor:pointer;font-size:13px;">7天</button>
+      <button onclick="setRange(30)" class="range-btn" style="padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">30天</button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val" id="kpi-avg">—</div><div class="kpi-lbl">平均梵森魂</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpi-count">—</div><div class="kpi-lbl">評分訊息數</div></div>
+    <div class="kpi"><div class="kpi-val" id="kpi-apply">—</div><div class="kpi-lbl">改寫採用率</div></div>
+  </div>
+
+  <!-- 趨勢圖 -->
+  <div class="card">
+    <h3 style="margin:0 0 12px;">近期梵森魂趨勢（每日平均）</h3>
+    <div class="trend-wrap" id="trendChart"></div>
+    <div style="display:flex;gap:3px;font-size:9px;color:#aaa;margin-top:4px;" id="trendLabels"></div>
+  </div>
+
+  <!-- 需改進訊息 -->
+  <div class="card" id="warn-card">
+    <h3 style="margin:0 0 12px;">需改進訊息（梵森魂 &lt; 70）</h3>
+    <div id="warn-list"></div>
+  </div>
+
+  <!-- 歷史評分 -->
+  <div class="card">
+    <h3 style="margin:0 0 12px;">歷史評分記錄</h3>
+    <div id="score-list"></div>
+  </div>
+</div>
+
+<script>
+const getCsrfToken = () => {
+  const match = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('cs_csrf='));
+  return match ? match.slice(8) : '';
+};
+const api = async (path) => {
+  const r = await fetch(path, { headers: { 'x-csrf-token': getCsrfToken() } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+};
+const escHtml = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// 從 URL 取得 user_id（admin 查詢指定客服）
+const urlParams = new URLSearchParams(location.search);
+const targetUserId = urlParams.get('user_id') || 'me';
+
+let rangeDays = 7;
+let from, to;
+
+const setRange = (days) => {
+  rangeDays = days;
+  document.querySelectorAll('.range-btn').forEach(b => {
+    const isActive = b.textContent.includes(days + '天');
+    b.style.background = isActive ? '#5856d6' : '#fff';
+    b.style.color = isActive ? '#fff' : '#333';
+  });
+  to = Date.now();
+  from = to - days * 86400000;
+  loadAll();
+};
+
+const getBadgeHtml = (score) => {
+  const s = parseFloat(score) || 0;
+  if (s >= 90) return `<span class="score-badge" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;">&#128081; ${s} — 很梵森</span>`;
+  if (s >= 70) return `<span class="score-badge" style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;">&#11088; ${s} — 尚可</span>`;
+  return `<span class="score-badge" style="background:#ffebee;color:#c62828;border:1px solid #ef9a9a;">&#9888; ${s} — 需改進</span>`;
+};
+
+const renderTrend = (scores) => {
+  const trendMap = {};
+  const nowMs = Date.now();
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const d = new Date(nowMs - i * 86400000);
+    const key = `${d.getMonth()+1}/${d.getDate()}`;
+    trendMap[key] = { sum: 0, cnt: 0 };
+  }
+  for (const s of scores) {
+    const d = new Date(s.created_at);
+    const key = `${d.getMonth()+1}/${d.getDate()}`;
+    if (trendMap[key]) { trendMap[key].sum += s.brand_score; trendMap[key].cnt++; }
+  }
+  const days = Object.entries(trendMap);
+  const maxCnt = Math.max(...days.map(([,v]) => v.cnt), 1);
+
+  const chart = document.getElementById('trendChart');
+  const labels = document.getElementById('trendLabels');
+  if (!chart) return;
+
+  chart.innerHTML = days.map(([label, v]) => {
+    const avg = v.cnt ? Math.round(v.sum / v.cnt) : 0;
+    const h = v.cnt ? Math.max(4, Math.round(v.cnt / maxCnt * 72)) : 2;
+    const color = avg >= 90 ? '#43a047' : avg >= 70 ? '#ff8f00' : avg ? '#e53935' : '#e8e8e8';
+    return `<div class="trend-col" style="flex:1;">
+      <div class="trend-bar" style="height:${h}px;background:${color};" title="${label}: ${avg || '無'}分 (${v.cnt}則)"></div>
+    </div>`;
+  }).join('');
+
+  if (labels) {
+    labels.innerHTML = days.filter((_, i) => i % Math.max(1, Math.floor(days.length / 7)) === 0)
+      .map(([label]) => `<span style="flex:1;text-align:center;">${label}</span>`).join('');
+  }
+};
+
+const loadAll = async () => {
+  const userId = targetUserId === 'me' ? 'me' : targetUserId;
+  // 如果是 me，先拿自己的 user_id
+  let userIdParam = userId;
+  if (userId === 'me') {
+    try {
+      const me = await api('/api/me');
+      userIdParam = me.user?.id || me.id;
+    } catch {}
+  }
+  if (!userIdParam) {
+    document.getElementById('score-list').innerHTML = '<div class="empty-state">請先登入</div>';
+    return;
+  }
+
+  try {
+    const data = await api(`/api/brand-coach/scores/${userIdParam}?from=${from}&to=${to}&limit=100`);
+    const scores = data.scores || [];
+
+    // KPI
+    const total = scores.length;
+    const avgScore = total ? Math.round(scores.reduce((a, s) => a + (s.brand_score || 0), 0) / total) : 0;
+    const appliedCount = scores.filter(s => s.applied).length;
+    const withRewrite = scores.filter(s => s.suggested_rewrite).length;
+    const applyRate = withRewrite ? Math.round(appliedCount / withRewrite * 100) : 0;
+
+    document.getElementById('kpi-avg').textContent = total ? avgScore : '—';
+    document.getElementById('kpi-avg').style.color = avgScore >= 90 ? '#2e7d32' : avgScore >= 70 ? '#e65100' : '#c62828';
+    document.getElementById('kpi-count').textContent = total || '—';
+    document.getElementById('kpi-apply').textContent = total ? applyRate + '%' : '—';
+
+    // 趨勢圖
+    renderTrend(scores);
+
+    // 低分列表
+    const warnList = document.getElementById('warn-list');
+    const lowScores = scores.filter(s => s.brand_score < 70);
+    if (!lowScores.length) {
+      warnList.innerHTML = '<div class="empty-state">太棒了！這個時段沒有低於 70 分的訊息</div>';
+    } else {
+      warnList.innerHTML = lowScores.map(s => `
+        <div class="warn-item" onclick="toggleScoreDetail(this, '${escHtml(s.feedback || '')}', '${escHtml(s.suggested_rewrite || '')}')">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+            ${getBadgeHtml(s.brand_score)}
+            <span style="font-size:11px;color:#aaa;">${new Date(s.created_at).toLocaleString('zh-TW')}</span>
+          </div>
+          <div style="font-size:13px;color:#444;white-space:pre-wrap;word-break:break-all;max-height:60px;overflow:hidden;">${escHtml((s.original_content || '').slice(0, 150))}${(s.original_content||'').length > 150 ? '…' : ''}</div>
+          <div class="score-feedback" style="display:none;">${escHtml(s.feedback || '')}</div>
+          ${s.suggested_rewrite ? `<div class="score-rewrite">${escHtml(s.suggested_rewrite)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    // 歷史評分
+    const scoreList = document.getElementById('score-list');
+    if (!scores.length) {
+      scoreList.innerHTML = '<div class="empty-state">此時段尚無評分記錄</div>';
+    } else {
+      scoreList.innerHTML = scores.map(s => `
+        <div class="score-item" onclick="toggleScoreDetail(this, '${escHtml(s.feedback || '')}', '${escHtml(s.suggested_rewrite || '')}')">
+          <div class="score-header">
+            ${getBadgeHtml(s.brand_score)}
+            ${s.applied ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;border:1px solid #a5d6a7;">已採用改寫</span>' : ''}
+            <span style="font-size:11px;color:#aaa;margin-left:auto;">${new Date(s.created_at).toLocaleString('zh-TW')}</span>
+          </div>
+          <div class="score-content">${escHtml((s.original_content || '').slice(0, 200))}${(s.original_content||'').length > 200 ? '…' : ''}</div>
+          <div class="score-feedback" style="display:none;"></div>
+          ${s.suggested_rewrite ? '<div class="score-rewrite"></div>' : ''}
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    document.getElementById('score-list').innerHTML = `<div class="empty-state">載入失敗：${escHtml(e.message)}</div>`;
+  }
+};
+
+window.toggleScoreDetail = (el, feedback, rewrite) => {
+  const fb = el.querySelector('.score-feedback');
+  const rw = el.querySelector('.score-rewrite');
+  const content = el.querySelector('.score-content');
+  if (!fb) return;
+  const isOpen = fb.style.display !== 'none' && fb.style.display !== '';
+  if (isOpen) {
+    fb.style.display = 'none';
+    if (rw) rw.style.display = 'none';
+    if (content) content.classList.remove('expanded');
+  } else {
+    fb.textContent = feedback;
+    fb.style.display = 'block';
+    if (rw && rewrite) {
+      rw.textContent = rewrite;
+      rw.style.display = 'block';
+    }
+    if (content) content.classList.add('expanded');
+  }
+};
+
+setRange(7);
+</script>
+</body>
+</html>

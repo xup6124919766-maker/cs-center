@@ -100,6 +100,11 @@ import { getActivityRemaining } from './lib/game.js';
 import { ensureVocSchema, analyzeMessage as vocAnalyzeMessage, runVocBatch, recomputeVocTopics } from './lib/voc.js';
 import vocRouter from './routes/voc.js';
 
+// ─── Quiz + Checkout 新功能 ───
+import quizRouter from './routes/quiz.js';
+import checkoutRouter from './routes/checkout.js';
+import { recordClick as recordCheckoutClick } from './lib/checkout.js';
+
 // ─── 語音轉文字 + SLA ───
 import { transcribeAudio } from './lib/transcribe.js';
 import {
@@ -117,6 +122,10 @@ import logsRouter from './routes/logs.js';
 
 // ─── Feedback Route Modules ───
 import feedbackRouter, { ensureFeedbackSchema, broadcastFeedbackRouter, activityFeedbackRouter } from './routes/feedback.js';
+
+// ─── 品牌教練 ───
+import { ensureBrandCoachSchema } from './lib/brand_coach.js';
+import brandCoachRouter from './routes/brand_coach.js';
 
 // ─── B5. 啟動環境變數驗證 ───
 const requireEnv = (key, ifProductionOnly = false) => {
@@ -174,6 +183,9 @@ startSlaScheduler();
 
 // ─── 初始化 VoC Schema ───
 ensureVocSchema();
+
+// ─── 初始化品牌教練 Schema ───
+ensureBrandCoachSchema();
 
 // ─── 梵森預設規則 seed ───
 try {
@@ -314,6 +326,21 @@ app.get('/icons/:file', (req, res) => {
 
 // ─── 玩家公開遊戲頁（顧客點 LINE/FB 連結進來玩，不需登入）───
 app.use('/play', express.static(path.join(__dirname, 'public', 'play')));
+
+// ─── Quiz 公開頁（顧客點連結進來做選香 quiz，不需登入）───
+app.use('/quiz', express.static(path.join(__dirname, 'public', 'quiz')));
+
+// ─── 結帳短連結重定向（公開，不需登入）───
+app.get('/go/:code', (req, res) => {
+  const { code } = req.params;
+  if (!/^[0-9a-f]{8}$/.test(code)) return res.status(400).send('無效連結');
+  const fullUrl = recordCheckoutClick(code);
+  if (!fullUrl) return res.status(404).send('連結不存在或已失效');
+  res.redirect(302, fullUrl);
+});
+
+// ─── Quiz 公開 API（requireAuth 之前）───
+app.use('/api/quiz', quizRouter);
 
 // ─── 顧客評價頁（公開，不需登入）───
 app.use('/feedback', express.static(path.join(__dirname, 'public', 'feedback')));
@@ -1228,6 +1255,9 @@ app.use(csrfMiddleware);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ─── Checkout 需登入路由 ───
+app.use('/api', checkoutRouter);
+
 app.get('/api/me', (req, res) => {
   const { user_id, username, role, client_id } = req.session;
   const user = getUser(user_id);
@@ -1237,6 +1267,18 @@ app.get('/api/me', (req, res) => {
     status_message: user?.status_message || '',
     totp_enabled: user?.totp_enabled || 0,
   });
+});
+
+// ─── 業主公開設定（品牌教練門檻等）供客服讀取 ───
+app.get('/api/clients/:id/config', requireAuth, (req, res) => {
+  const clientId = parseInt(req.params.id, 10);
+  // 只允許查詢自己所屬業主（admin 可查所有）
+  if (req.session.role !== 'admin' && req.session.client_id !== clientId) {
+    return res.status(403).json({ error: '無權限' });
+  }
+  const row = db.prepare('SELECT id, name, display_name, brand_coach_threshold FROM clients WHERE id = ?').get(clientId);
+  if (!row) return res.status(404).json({ error: '業主不存在' });
+  return res.json({ client: row });
 });
 
 // ─── 客服上線狀態 ───
@@ -3189,6 +3231,9 @@ app.post('/api/clv/recompute', requireAdmin, (req, res) => {
 app.use('/api/billing', billingRouter);
 app.use('/api/logs', logsRouter);
 // /api/logs/security-events 與 /api/logs/security-events/:id/resolve 都在 logsRouter 內
+
+// ─── 品牌教練 ───
+app.use('/api/brand-coach', brandCoachRouter);
 
 // ─── P6: 每日報表手動觸發 ───
 app.post('/api/daily-reports/generate', requireAdmin, async (req, res) => {

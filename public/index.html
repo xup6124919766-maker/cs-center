@@ -177,6 +177,22 @@
         <button class="input-mode-btn active" id="mode-reply" data-mode="reply">💬 回覆</button>
         <button class="input-mode-btn" id="mode-note" data-mode="note">📝 內部備忘</button>
       </div>
+
+      <!-- 品牌教練即時評分條 -->
+      <div id="brand-coach-bar" style="display:none;padding:8px 12px;background:#f8f6ff;border-top:1px solid #e8e4f8;font-size:12px;line-height:1.5;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-weight:600;color:#5856d6;">梵森魂</span>
+            <span id="bc-score-num" style="font-size:16px;font-weight:700;">—</span>
+            <span style="color:#888;">分</span>
+            <span id="bc-score-badge" style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;"></span>
+          </div>
+          <button id="bc-coach-toggle" onclick="toggleBrandCoach()" style="font-size:11px;padding:2px 8px;border:1px solid #c4bef0;border-radius:4px;background:transparent;color:#5856d6;cursor:pointer;">隱藏</button>
+        </div>
+        <div id="bc-feedback" style="color:#555;margin-top:4px;"></div>
+        <button id="bc-apply-btn" onclick="applyCoachRewrite()" style="display:none;margin-top:6px;font-size:12px;padding:4px 12px;border:1px solid #5856d6;border-radius:4px;background:#5856d6;color:#fff;cursor:pointer;">使用 AI 改寫</button>
+      </div>
+
       <div id="input-row">
         <textarea
           id="msg-input"

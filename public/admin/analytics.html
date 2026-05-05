@@ -175,6 +175,31 @@
     </div>
   </div>
 
+  <!-- 梵森魂排行榜 -->
+  <div class="card" id="bc-leaderboard-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <h3 style="margin:0;">梵森魂排行榜</h3>
+      <a href="/admin/brand-coach.html" style="font-size:12px;color:#5856d6;text-decoration:none;">查看個人教練頁 →</a>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">梵森魂分數 = AI 評分訊息的品牌語調濃度（0-100），每次客服輸入訊息自動評分</div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;">排名</th>
+            <th>客服</th>
+            <th>平均分</th>
+            <th>評分訊息數</th>
+            <th>改寫採用率</th>
+          </tr>
+        </thead>
+        <tbody id="bcLeaderboardBody">
+          <tr><td colspan="5" style="color:#999;text-align:center;padding:16px;">載入中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 舊版客服績效（保留相容性）-->
   <div class="card" style="display:none;">
     <h3 style="margin:0 0 12px">客服績效（舊版）</h3>
@@ -521,6 +546,7 @@ window.setAgentRange = (days) => {
   agentFrom = agentTo - days * 86400000;
   document.getElementById('agent-custom-range').style.display = 'none';
   loadAgentRank();
+  loadBcLeaderboard();
 };
 
 window.showCustomRange = () => {
@@ -541,8 +567,47 @@ window.applyCustomRange = () => {
 agentFrom = Date.now() - 7 * 86400000;
 agentTo = Date.now();
 
+// ─── 梵森魂排行榜 ───
+const loadBcLeaderboard = async () => {
+  const from = agentFrom || Date.now() - 7 * 86400000;
+  const to   = agentTo   || Date.now();
+  try {
+    const data = await api(`/api/brand-coach/leaderboard?from=${from}&to=${to}`);
+    const rows = data.leaderboard || [];
+    const tbody = document.getElementById('bcLeaderboardBody');
+    if (!tbody) return;
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:#999;text-align:center;padding:16px;">尚無評分資料</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map((r, i) => {
+      const score = parseFloat(r.avg_score) || 0;
+      let icon = '';
+      if (score >= 90) icon = '<span title="王者">&#128081;</span> ';        // 王冠
+      else if (score >= 80) icon = '<span title="優秀">&#11088;</span> ';   // 星
+      const medal = i < 3
+        ? ['&#129351;', '&#129352;', '&#129353;'][i]
+        : `${i + 1}`;
+      const scoreColor = score >= 90 ? '#2e7d32' : score >= 70 ? '#e65100' : '#c62828';
+      const applyRate = r.apply_rate != null ? r.apply_rate + '%' : '—';
+      return `
+        <tr onclick="window.open('/admin/brand-coach.html?user_id=${r.user_id}','_blank')" style="cursor:pointer;" onmouseover="this.style.background='#f5f5ff'" onmouseout="this.style.background=''">
+          <td style="text-align:center;">${medal}</td>
+          <td><strong>${escHtml(r.username || '—')}</strong></td>
+          <td style="font-weight:700;color:${scoreColor};">${icon}${score}</td>
+          <td>${r.msg_count}</td>
+          <td>${applyRate}</td>
+        </tr>`;
+    }).join('');
+  } catch (e) {
+    const tbody = document.getElementById('bcLeaderboardBody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="color:#c62828;text-align:center;">${e.message}</td></tr>`;
+  }
+};
+
 loadOnlineUsers().catch(() => {});
 setRange(7);
+loadBcLeaderboard();
 </script>
 </body>
 </html>
