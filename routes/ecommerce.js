@@ -16,7 +16,7 @@ import { emitToClient } from '../lib/realtime.js';
 import { logger as rootLogger } from '../lib/logger.js';
 import { checkAndEnrollJourneyTrigger } from '../lib/journey.js';
 import { decrypt } from '../lib/crypto.js';
-import { syncOrdersForClient, verifyToken as bvVerifyToken } from '../lib/bvshop.js';
+import { syncOrdersForClient, verifyCredentials as bvVerifyCreds, verifyToken as bvVerifyToken } from '../lib/bvshop.js';
 import { recordBilling } from '../lib/billing.js';
 
 const log = rootLogger.child({ module: 'routes/ecommerce' });
@@ -233,19 +233,28 @@ router.post('/clients/:id/bv-sync-now', async (req, res) => {
   }
 });
 
-// ─── BV token 即時驗證（admin only）───
-// 用戶把 BV 給的 token 貼進來立刻打 BV 試，不用先存進 DB
+// ─── BV 憑證即時驗證（admin only）─── email + password 換 token 試打
 router.post('/clients/:id/bv-test-token', async (req, res) => {
   if (req.session?.role !== 'admin') return res.status(403).json({ error: '需要 admin 權限' });
-  const token = String(req.body?.token || '').trim();
-  const baseUrl = String(req.body?.base_url || 'https://bvshop-manage.bvshop.tw').trim();
-  if (!token) return res.status(400).json({ error: '請提供 token' });
+  const email = String(req.body?.email || '').trim();
+  const password = String(req.body?.password || '').trim();
+  const type = String(req.body?.type || 'store').trim();
+  const baseUrl = String(req.body?.base_url || 'https://bvshop-manage.bv-shop.tw').trim();
+  // 向下相容：如果只給 token 就用舊驗證
+  const tokenOnly = String(req.body?.token || '').trim();
   try {
-    const r = await bvVerifyToken(token, baseUrl);
+    if (tokenOnly && !email) {
+      const r = await bvVerifyToken(tokenOnly, baseUrl);
+      return res.json({ ok: r.ok, status: r.status,
+        message: r.ok ? `✅ Token 有效` : `❌ HTTP ${r.status}：${(r.error||'').slice(0,200)}` });
+    }
+    if (!email || !password) return res.status(400).json({ error: '請提供 email + password' });
+    const r = await bvVerifyCreds(email, password, type, baseUrl);
     res.json({
-      ok: r.ok,
-      status: r.status,
-      message: r.ok ? `✅ Token 有效（HTTP ${r.status}）` : `❌ ${r.status === 401 ? 'BV 拒絕：Unauthenticated（token 失效或被吊銷）' : 'HTTP ' + r.status + '：' + (r.error || '').slice(0, 200)}`,
+      ok: r.ok, status: r.status,
+      message: r.ok
+        ? `✅ 登入成功，user=${r.user?.name} storeId=${r.user?.storeId}`
+        : `❌ HTTP ${r.status}：${(r.error||'').slice(0,200)}`,
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

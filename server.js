@@ -1512,7 +1512,9 @@ app.get('/api/clients', requireAdmin, (_req, res) => {
       ig_verify_token: full?.ig_verify_token || null,
       // P8 BV SHOP
       bv_shop_url: full?.bv_shop_url || null,
-      has_bv_api_key: !!(full?.bv_api_key_enc),
+      bv_email: full?.bv_email || null,
+      bv_type: full?.bv_type || 'store',
+      has_bv_api_key: !!(full?.bv_password_enc || full?.bv_api_key_enc),
       bv_last_sync_at: full?.bv_last_sync_at || null,
       bv_order_count: bvOrderCount,
       // 結帳連結設定
@@ -1539,7 +1541,7 @@ app.put('/api/clients/:id', requireAdmin, (req, res) => {
     // IG DM 欄位
     ig_business_account_id, ig_access_token, ig_verify_token,
     // P8 BV SHOP 欄位
-    bv_shop_url, bv_api_key } = req.body || {};
+    bv_shop_url, bv_api_key, bv_email, bv_password, bv_type } = req.body || {};
 
   const fields = {};
   if (name !== undefined) fields.name = name;
@@ -1558,6 +1560,9 @@ app.put('/api/clients/:id', requireAdmin, (req, res) => {
   // P8 BV SHOP
   if (bv_shop_url !== undefined) fields.bv_shop_url = bv_shop_url;
   if (bv_api_key !== undefined) fields.bv_api_key_enc = encrypt(bv_api_key);
+  if (bv_email !== undefined) fields.bv_email = bv_email;
+  if (bv_password !== undefined) fields.bv_password_enc = encrypt(bv_password);
+  if (bv_type !== undefined) fields.bv_type = bv_type || 'store';
 
   updateClientFull(id, fields);
   insertAuditLog({ user_id: req.session.user_id, action: 'update_client', entity_type: 'client', entity_id: id, ip: req.ip });

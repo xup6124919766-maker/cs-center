@@ -311,12 +311,22 @@ const renderClientCard = (client) => {
       <div class="section-label">BV SHOP 整合</div>
       <div class="form-row">
         <div class="form-group">
-          <label>BV API Host（預設 https://bvshop-manage.bvshop.tw 可空）</label>
-          <input type="text" id="${client.id}-bv-shop-url" placeholder="https://bvshop-manage.bvshop.tw" value="${esc(client.bv_shop_url || '')}" />
+          <label>BV API Host（測試=https://bvshop-manage.bv-shop.tw / production=自填）</label>
+          <input type="text" id="${client.id}-bv-shop-url" placeholder="https://bvshop-manage.bv-shop.tw" value="${esc(client.bv_shop_url || '')}" />
         </div>
         <div class="form-group">
-          <label>BV API Token（格式 id|hash，加密存儲）</label>
+          <label>BV 店長 Email</label>
+          <input type="email" id="${client.id}-bv-email" placeholder="店長 email" value="${esc(client.bv_email || '')}" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>BV 店長密碼（加密存儲）</label>
           <input type="password" id="${client.id}-bv-api-key" placeholder="留空 = 不更新" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label>BV type（預設 store）</label>
+          <input type="text" id="${client.id}-bv-type" placeholder="store" value="${esc(client.bv_type || 'store')}" />
         </div>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; align-items:center;">
@@ -575,13 +585,17 @@ window.saveIgTokens = async (clientId) => {
 window.saveBvShop = async (clientId) => {
   const statusEl = document.getElementById(`bv-status-${clientId}`);
   if (statusEl) statusEl.textContent = '儲存中…';
-  const get = (id) => document.getElementById(id)?.value ?? '';
+  const get = (id) => document.getElementById(id)?.value?.trim() ?? '';
   const bvShopUrl = get(`${clientId}-bv-shop-url`);
-  const bvApiKey  = get(`${clientId}-bv-api-key`);
+  const bvEmail = get(`${clientId}-bv-email`);
+  const bvPassword = get(`${clientId}-bv-api-key`);
+  const bvType = get(`${clientId}-bv-type`);
   const body = {};
   if (bvShopUrl !== undefined) body.bv_shop_url = bvShopUrl;
-  if (bvApiKey)  body.bv_api_key = bvApiKey;
-  if (!bvShopUrl && !bvApiKey) {
+  if (bvEmail !== undefined)   body.bv_email = bvEmail;
+  if (bvPassword)              body.bv_password = bvPassword;
+  if (bvType !== undefined)    body.bv_type = bvType;
+  if (!bvShopUrl && !bvEmail && !bvPassword && !bvType) {
     if (statusEl) statusEl.textContent = '沒有變更';
     return;
   }
@@ -596,21 +610,23 @@ window.saveBvShop = async (clientId) => {
   }
 };
 
-// ─── BV token 即時驗證 ───
+// ─── BV 即時驗證憑證（用 email+password 換 token 試）───
 window.bvTestToken = async (clientId) => {
   const get = (id) => document.getElementById(id)?.value?.trim() ?? '';
-  const token = get(`${clientId}-bv-api-key`);
-  const baseUrl = get(`${clientId}-bv-shop-url`) || 'https://bvshop-manage.bvshop.tw';
-  if (!token) {
-    toast('請先在 BV API Token 欄位貼上 token', 'warning');
+  const email = get(`${clientId}-bv-email`);
+  const password = get(`${clientId}-bv-api-key`);
+  const type = get(`${clientId}-bv-type`) || 'store';
+  const baseUrl = get(`${clientId}-bv-shop-url`) || 'https://bvshop-manage.bv-shop.tw';
+  if (!email || !password) {
+    toast('請填 BV email + 密碼', 'warning');
     return;
   }
   const statusEl = document.getElementById(`bv-status-${clientId}`);
   if (statusEl) statusEl.textContent = '驗證中…';
   try {
-    const r = await api('POST', `/api/clients/${clientId}/bv-test-token`, { token, base_url: baseUrl });
+    const r = await api('POST', `/api/clients/${clientId}/bv-test-token`, { email, password, type, base_url: baseUrl });
     if (statusEl) statusEl.textContent = r.message || (r.ok ? '✅ 通過' : '❌ 失敗');
-    toast(r.message || (r.ok ? 'Token 有效' : 'Token 無效'), r.ok ? 'success' : 'error');
+    toast(r.message || (r.ok ? '憑證有效' : '憑證無效'), r.ok ? 'success' : 'error');
   } catch (e) {
     if (statusEl) statusEl.textContent = `驗證失敗：${e.message}`;
     toast(`驗證失敗：${e.message}`, 'error');
