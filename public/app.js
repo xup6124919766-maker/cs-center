@@ -15,6 +15,17 @@ if ('serviceWorker' in navigator) {
   }
 }
 
+// ─── 防禦：頁面載入時強制關閉所有可能卡住的 modal/overlay ───
+window.addEventListener('DOMContentLoaded', () => {
+  const overlayIds = ['transfer-modal', 'checkout-modal', 'shortcut-modal', 'pwa-install-banner', 'pwa-update-banner', 'offline-banner'];
+  overlayIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  // 砍掉所有 .shortcut-modal class（鍵盤快捷鍵說明）
+  document.querySelectorAll('.shortcut-modal').forEach(el => el.style.display = 'none');
+});
+
 // ─── 更新橫幅 ───
 const _showUpdateBanner = (newWorker) => {
   const existing = document.getElementById('pwa-update-banner');
