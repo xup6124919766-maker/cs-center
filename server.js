@@ -127,6 +127,10 @@ import feedbackRouter, { ensureFeedbackSchema, broadcastFeedbackRouter, activity
 import { ensureBrandCoachSchema } from './lib/brand_coach.js';
 import brandCoachRouter from './routes/brand_coach.js';
 
+// ─── LINE Audience Group 同步 ───
+import { ensureAudienceSchema, syncTagToLineAudience } from './lib/audience_sync.js';
+import audienceRouter from './routes/audience.js';
+
 // ─── B5. 啟動環境變數驗證 ───
 const requireEnv = (key, ifProductionOnly = false) => {
   if (ifProductionOnly && process.env.NODE_ENV !== 'production') return;
@@ -186,6 +190,9 @@ ensureVocSchema();
 
 // ─── 初始化品牌教練 Schema ───
 ensureBrandCoachSchema();
+
+// ─── 初始化 LINE Audience Schema ───
+ensureAudienceSchema();
 
 // ─── 梵森預設規則 seed ───
 try {
@@ -2313,8 +2320,31 @@ app.put('/api/customers/:id', (req, res) => {
       const oldTags = JSON.parse(customer.tags || '[]');
       const newTags = Array.isArray(tags) ? tags : JSON.parse(tags || '[]');
       const added = newTags.filter(t => !oldTags.includes(t));
+      const removed = oldTags.filter(t => !newTags.includes(t));
+
       for (const tag of added) {
         checkAndEnrollJourneyTrigger('tag_added', { client_id: clientId, customer_id: id, tag });
+      }
+
+      // ── LINE Audience Group 增量同步（非阻塞）──
+      // 注意：這是廣播分眾 Audience Group，非 LINE OA 聊天標籤（那個 LINE 不開 API）
+      const fullClient = getClient(clientId);
+      if (fullClient?.audience_sync_enabled && fullClient?.line_access_token_enc) {
+        Promise.resolve().then(async () => {
+          const cc = db.prepare(
+            "SELECT channel_user_id FROM customer_channels WHERE customer_id = ? AND channel = 'line'"
+          ).get(id);
+          if (!cc?.channel_user_id) return;
+
+          const token = decrypt(fullClient.line_access_token_enc);
+
+          for (const tag of added) {
+            await syncTagToLineAudience(clientId, tag, [cc.channel_user_id], 'add', token, id);
+          }
+          for (const tag of removed) {
+            await syncTagToLineAudience(clientId, tag, [cc.channel_user_id], 'remove', token, id);
+          }
+        }).catch(e => log.error({ err: e.message, customer_id: id }, 'audience sync 失敗（非阻塞）'));
       }
     } catch (e) { /* 標籤解析失敗就跳過 */ }
   }
@@ -3301,6 +3331,10 @@ app.use('/api/logs', logsRouter);
 
 // ─── 品牌教練 ───
 app.use('/api/brand-coach', brandCoachRouter);
+
+// ─── LINE Audience Group 同步 ───
+// ⚠️  廣播分眾用途，非 LINE OA 聊天標籤（OA 聊天標籤 LINE 不開 API）
+app.use('/api/audience', requireAuth, audienceRouter);
 
 // ─── P6: 每日報表手動觸發 ───
 app.post('/api/daily-reports/generate', requireAdmin, async (req, res) => {

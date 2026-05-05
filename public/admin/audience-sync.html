@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LINE Audience 同步 — 廣播分眾</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  h2 { margin: 0 0 4px; font-size: 20px; }
+  h3 { margin: 0 0 14px; font-size: 16px; }
+
+  /* notice box */
+  .notice { background: #fffbe6; border-left: 4px solid #f59e0b; border-radius: 0 8px 8px 0; padding: 12px 16px; font-size: 13px; color: #7c5f00; line-height: 1.6; margin-bottom: 16px; }
+  .notice strong { display: block; margin-bottom: 4px; font-size: 14px; }
+
+  /* toggle switch */
+  .toggle-row { display: flex; align-items: center; gap: 14px; }
+  .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: #ccc; border-radius: 24px; cursor: pointer; transition: .3s; }
+  .slider:before { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: .3s; }
+  input:checked + .slider { background: #06c755; }
+  input:checked + .slider:before { transform: translateX(20px); }
+  .toggle-label { font-size: 14px; font-weight: 600; }
+  .toggle-sub { font-size: 12px; color: #888; margin-top: 2px; }
+
+  /* status badge */
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge-ready { background: #e8f5e9; color: #2e7d32; }
+  .badge-progress { background: #fff8e1; color: #f57c00; }
+  .badge-failed { background: #fce8e8; color: #c62828; }
+  .badge-unknown { background: #f0f0f0; color: #888; }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #888; font-weight: 600; padding: 8px 10px; border-bottom: 2px solid #f0f0f0; }
+  td { padding: 10px; border-bottom: 1px solid #f8f8f8; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+
+  /* buttons */
+  .btn { padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-primary { background: #06c755; color: #fff; }
+  .btn-primary:hover { background: #05b44a; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-danger { background: #fce8e8; color: #c62828; }
+  .btn-danger:hover { background: #f9d0d0; }
+  .btn-sm { padding: 3px 10px; font-size: 12px; border-radius: 6px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* action row */
+  .action-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+
+  /* log table */
+  .log-action-add { color: #2e7d32; }
+  .log-action-remove { color: #c62828; }
+  .log-action-create_group { color: #1565c0; }
+  .log-action-sync_error { color: #c62828; }
+  .log-status-success { color: #2e7d32; }
+  .log-status-failed { color: #c62828; }
+
+  /* empty */
+  .empty { text-align: center; color: #bbb; padding: 28px; font-size: 13px; }
+
+  /* spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #06c755; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <span class="brand">CS Hub</span>
+  <a href="/dashboard.html">首頁</a>
+  <a href="/index.html">客服</a>
+  <a href="/admin/analytics.html">報表</a>
+  <a href="/admin/integrations.html">整合</a>
+  <a href="/admin/audience-sync.html" class="active">LINE Audience</a>
+  <a href="/admin.html">設定</a>
+</nav>
+
+<div class="container">
+
+  <!-- 標題 + 啟用開關 -->
+  <div class="card" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+    <div>
+      <h2>LINE Audience Group 同步</h2>
+      <div style="font-size:13px;color:#888;margin-top:4px;">把客服標籤自動對應到 LINE 廣播受眾群組，廣播時可直接選用</div>
+    </div>
+    <div class="toggle-row">
+      <label class="switch">
+        <input type="checkbox" id="syncEnabled" onchange="toggleSync(this.checked)">
+        <span class="slider"></span>
+      </label>
+      <div>
+        <div class="toggle-label">啟用 Audience 同步</div>
+        <div class="toggle-sub">開啟後，每次貼標籤時自動推送到 LINE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 系統說明 -->
+  <div class="notice">
+    <strong>關於 LINE Audience Group（重要）</strong>
+    這個功能使用 LINE <strong>Audience Group API（廣播分眾）</strong>，與 LINE OA Manager 聊天頁面裡的「標籤」<strong>完全是兩個不同系統</strong>。<br>
+    Audience Group 的用途是：在 LINE 後台 / Developers Console 發送廣播訊息時，可以選擇「只發給有 VIP 標籤的人」等特定受眾。<br>
+    這些 Audience Group <strong>不會出現在 OA 聊天標籤欄位</strong>，OA 聊天標籤目前 LINE 不提供 API。
+  </div>
+
+  <!-- Mapping 表 -->
+  <div class="card">
+    <div class="action-bar">
+      <h3 style="margin:0;flex:1;">Tag → Audience 對應表</h3>
+      <button class="btn btn-secondary btn-sm" onclick="refreshStatus()">重整狀態</button>
+      <button class="btn btn-primary btn-sm" id="bulkBtn" onclick="bulkSync()">立即同步全部 Tag</button>
+    </div>
+
+    <div id="mappingLoading" class="empty"><span class="spin"></span> 載入中…</div>
+    <div id="mappingEmpty" class="empty" style="display:none;">尚無 mapping；啟用同步後，當顧客被貼標籤時會自動建立。<br>或點「立即同步全部 Tag」一次批次建立。</div>
+
+    <table id="mappingTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>Tag 名稱</th>
+          <th>LINE Audience ID</th>
+          <th>成員數</th>
+          <th>狀態</th>
+          <th>最後同步</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="mappingBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 單 tag 手動同步 -->
+  <div class="card">
+    <h3>手動同步特定 Tag</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input id="syncTagInput" type="text" placeholder="輸入 tag 名稱，例如：VIP"
+        style="padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:200px;">
+      <button class="btn btn-primary" onclick="syncNow()">同步此 Tag</button>
+    </div>
+    <div id="syncResult" style="font-size:13px;margin-top:10px;color:#444;"></div>
+  </div>
+
+  <!-- 同步記錄 -->
+  <div class="card">
+    <h3>最近 50 筆同步記錄</h3>
+    <div id="logLoading" class="empty"><span class="spin"></span> 載入中…</div>
+    <div id="logEmpty" class="empty" style="display:none;">尚無同步記錄</div>
+    <table id="logTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>時間</th>
+          <th>Tag</th>
+          <th>動作</th>
+          <th>Audience ID</th>
+          <th>狀態</th>
+          <th>錯誤訊息</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ─── 取得 client_id（從 session cookie 或 localStorage）───
+const getClientId = () => {
+  const stored = localStorage.getItem('client_id');
+  return stored ? `?client_id=${stored}` : '';
+};
+const getClientIdVal = () => {
+  const stored = localStorage.getItem('client_id');
+  return stored ? parseInt(stored, 10) : null;
+};
+
+// ─── 初始化 ───
+let syncEnabledState = false;
+
+const init = async () => {
+  await loadClientSettings();
+  await loadMappings();
+  await loadLogs();
+};
+
+// ─── 取得 client 設定（audience_sync_enabled）───
+const loadClientSettings = async () => {
+  try {
+    const cid = getClientIdVal();
+    if (!cid) return;
+    const res = await fetch(`/api/clients/${cid}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const client = data.client || data;
+    syncEnabledState = !!client.audience_sync_enabled;
+    document.getElementById('syncEnabled').checked = syncEnabledState;
+  } catch (e) {
+    console.warn('loadClientSettings:', e);
+  }
+};
+
+// ─── 開關同步 ───
+const toggleSync = async (enabled) => {
+  const cid = getClientIdVal();
+  if (!cid) { alert('無法取得 client_id，請先登入'); return; }
+  try {
+    const res = await fetch(`/api/audience/enable/${cid}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled ? 1 : 0 }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '更新失敗');
+    syncEnabledState = enabled;
+  } catch (e) {
+    alert('更新失敗：' + e.message);
+    document.getElementById('syncEnabled').checked = !enabled;
+  }
+};
+
+// ─── 載入 mapping 表 ───
+const loadMappings = async () => {
+  const loading = document.getElementById('mappingLoading');
+  const empty = document.getElementById('mappingEmpty');
+  const table = document.getElementById('mappingTable');
+  const tbody = document.getElementById('mappingBody');
+
+  loading.style.display = '';
+  empty.style.display = 'none';
+  table.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/audience/mappings${getClientId()}`);
+    const data = await res.json();
+    const mappings = data.mappings || [];
+    loading.style.display = 'none';
+
+    if (!mappings.length) {
+      empty.style.display = '';
+      return;
+    }
+
+    tbody.innerHTML = mappings.map(m => {
+      const statusBadge = statusBadgeHtml(m.line_audience_status);
+      const lastSync = m.last_synced_at ? new Date(m.last_synced_at).toLocaleString('zh-TW') : '—';
+      return `<tr>
+        <td><strong>${escHtml(m.tag_name)}</strong></td>
+        <td style="font-family:monospace;font-size:12px;">${m.line_audience_id || '—'}</td>
+        <td>${m.member_count ?? 0}</td>
+        <td>${statusBadge}</td>
+        <td style="font-size:12px;color:#888;">${lastSync}</td>
+        <td>
+          <button class="btn btn-danger btn-sm" onclick="deleteMapping(${m.id}, '${escHtml(m.tag_name)}')">刪除 Mapping</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    table.style.display = '';
+  } catch (e) {
+    loading.innerHTML = '<span style="color:#c62828;">載入失敗：' + escHtml(e.message) + '</span>';
+  }
+};
+
+// ─── 載入同步記錄 ───
+const loadLogs = async () => {
+  const loading = document.getElementById('logLoading');
+  const empty = document.getElementById('logEmpty');
+  const table = document.getElementById('logTable');
+  const tbody = document.getElementById('logBody');
+
+  loading.style.display = '';
+  empty.style.display = 'none';
+  table.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/audience/sync-log${getClientId()}`);
+    const data = await res.json();
+    const logs = data.logs || [];
+    loading.style.display = 'none';
+
+    if (!logs.length) {
+      empty.style.display = '';
+      return;
+    }
+
+    tbody.innerHTML = logs.map(l => {
+      const ts = new Date(l.created_at).toLocaleString('zh-TW');
+      const actionClass = 'log-action-' + (l.action || 'unknown');
+      const statusClass = 'log-status-' + (l.status || 'unknown');
+      const actionLabel = { add: '加入', remove: '移除', create_group: '建立群組', bulk_sync: '批次同步', sync_error: '錯誤' }[l.action] || l.action;
+      return `<tr>
+        <td style="font-size:12px;white-space:nowrap;">${ts}</td>
+        <td>${escHtml(l.tag_name || '—')}</td>
+        <td class="${escHtml(actionClass)}">${escHtml(actionLabel)}</td>
+        <td style="font-family:monospace;font-size:11px;">${escHtml(l.line_audience_id || '—')}</td>
+        <td class="${escHtml(statusClass)}">${l.status === 'success' ? '成功' : (l.status === 'failed' ? '失敗' : l.status || '—')}</td>
+        <td style="font-size:12px;color:#c62828;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(l.error || '')}">${escHtml(l.error || '—')}</td>
+      </tr>`;
+    }).join('');
+
+    table.style.display = '';
+  } catch (e) {
+    loading.innerHTML = '<span style="color:#c62828;">載入失敗：' + escHtml(e.message) + '</span>';
+  }
+};
+
+// ─── 手動 sync-now ───
+const syncNow = async () => {
+  const tag = document.getElementById('syncTagInput').value.trim();
+  if (!tag) { alert('請輸入 tag 名稱'); return; }
+
+  const resultEl = document.getElementById('syncResult');
+  resultEl.innerHTML = '<span class="spin"></span> 同步中…';
+
+  try {
+    const body = { tag_name: tag };
+    const cid = getClientIdVal();
+    if (cid) body.client_id = cid;
+
+    const res = await fetch('/api/audience/sync-now', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '同步失敗');
+
+    resultEl.innerHTML = `<span style="color:#2e7d32;">同步完成：${escHtml(data.message || `已同步 ${data.synced} 位顧客`)}</span>`;
+    await loadMappings();
+    await loadLogs();
+  } catch (e) {
+    resultEl.innerHTML = '<span style="color:#c62828;">失敗：' + escHtml(e.message) + '</span>';
+  }
+};
+
+// ─── 批次同步全部 ───
+const bulkSync = async () => {
+  if (!confirm('確定要對所有現有 Tag 做一次完整同步？（會依次呼叫 LINE API，可能需要數秒）')) return;
+
+  const btn = document.getElementById('bulkBtn');
+  btn.disabled = true;
+  btn.textContent = '同步中…';
+
+  try {
+    const body = {};
+    const cid = getClientIdVal();
+    if (cid) body.client_id = cid;
+
+    const res = await fetch('/api/audience/bulk-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '批次同步失敗');
+
+    const lines = (data.results || []).map(r => `• ${escHtml(r.tag)}：${escHtml(r.result)}`).join('\n');
+    alert('批次同步完成\n\n' + (lines || '沒有需要同步的 Tag'));
+    await loadMappings();
+    await loadLogs();
+  } catch (e) {
+    alert('批次同步失敗：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '立即同步全部 Tag';
+  }
+};
+
+// ─── 刪除 mapping ───
+const deleteMapping = async (id, tagName) => {
+  if (!confirm(`確定刪除「${tagName}」的 Audience Mapping？\n\nLINE 上的 audience group 不會被刪除，只移除本地對應關係。`)) return;
+
+  try {
+    const cid = getClientIdVal();
+    const qs = cid ? `?client_id=${cid}` : '';
+    const res = await fetch(`/api/audience/mappings/${id}${qs}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '刪除失敗');
+    await loadMappings();
+  } catch (e) {
+    alert('刪除失敗：' + e.message);
+  }
+};
+
+// ─── 重整 LINE 狀態 ───
+const refreshStatus = async () => {
+  try {
+    const body = {};
+    const cid = getClientIdVal();
+    if (cid) body.client_id = cid;
+
+    await fetch('/api/audience/refresh-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    await loadMappings();
+  } catch (e) {
+    console.warn('refreshStatus:', e);
+  }
+};
+
+// ─── 狀態 Badge HTML ───
+const statusBadgeHtml = (status) => {
+  const map = {
+    READY: ['badge-ready', 'READY'],
+    IN_PROGRESS: ['badge-progress', '處理中'],
+    FAILED: ['badge-failed', '失敗'],
+  };
+  const [cls, label] = map[status] || ['badge-unknown', status || '未知'];
+  return `<span class="badge ${cls}">${label}</span>`;
+};
+
+// ─── HTML escape ───
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ─── 啟動 ───
+init();
+</script>
+</body>
+</html>
