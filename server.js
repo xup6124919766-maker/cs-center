@@ -292,13 +292,18 @@ app.use((req, res, next) => {
       ip: req.ip,
       user_id: req.session?.user_id ?? null,
     };
+    // 健康檢查 / 靜態資源不打 req log（每秒被打到爛）
+    const isNoise = req.path === '/api/health' || req.path === '/favicon.ico' ||
+                    req.path.startsWith('/icons/') || req.path.startsWith('/_shared/') ||
+                    req.path.startsWith('/play/') || req.path.endsWith('.css') ||
+                    req.path.endsWith('.js') || req.path.endsWith('.svg') ||
+                    req.path.endsWith('.png') || req.path.endsWith('.webmanifest');
     if (status >= 500) log.error(ctx, 'req end');
     else if (status >= 400) log.warn(ctx, 'req end');
-    else log.info(ctx, 'req end');
+    else if (!isNoise) log.debug(ctx, 'req end'); // 一般 200 走 debug
 
     // ─── P6: 慢 endpoint 偵測（>500ms）───
     if (duration > 500) {
-      console.log('[slow_logs] inserting', duration, `${req.method} ${req.path}`);
       log.warn({ path: req.path, duration_ms: duration, method: req.method }, '慢端點偵測');
       try {
         db.prepare(`
@@ -318,13 +323,7 @@ app.use((req, res, next) => {
     }
   });
 
-  log.info({
-    request_id: req.id,
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-  }, 'req start');
-
+  // req start 拿掉 — 噪音；req end 已有完整 context
   next();
 });
 
