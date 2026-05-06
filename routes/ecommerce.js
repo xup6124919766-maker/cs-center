@@ -20,6 +20,7 @@ import {
   syncOrdersForClient, verifyCredentials as bvVerifyCreds, verifyToken as bvVerifyToken,
   sendCustomerPoint, updateBvCustomer, updateBvOrder, createEcpayLogistic,
   fetchOrder as bvFetchOrder, fetchInventory as bvFetchInventory,
+  searchBvCustomers, fetchCustomer as bvFetchCustomer,
 } from '../lib/bvshop.js';
 import { recordBilling } from '../lib/billing.js';
 
@@ -296,7 +297,8 @@ const getClientForOrder = (orderId) => {
 
 // ─── 手動連結/解除 BV 會員 PUT /api/customers/:id/bv-link ───
 // body: { bv_customer_id: 123 } 連結；{ bv_customer_id: 0 } 解除
-router.put('/customers/:id/bv-link', (req, res) => {
+// 連結成功時自動從 BV 抓顧客資料補齊本地 name/phone/email
+router.put('/customers/:id/bv-link', async (req, res) => {
   if (!requireAgent(req, res)) return;
   const customerId = parseInt(req.params.id, 10);
   const raw = req.body?.bv_customer_id;
@@ -305,17 +307,64 @@ router.put('/customers/:id/bv-link', (req, res) => {
   const isUnlink = bvId === 0;
   const valToWrite = isUnlink ? null : bvId;
   if (!isUnlink && (isNaN(bvId) || bvId < 1)) return res.status(400).json({ error: 'bv_customer_id 格式錯誤' });
-  const cust = db.prepare('SELECT id, client_id FROM customers WHERE id = ?').get(customerId);
+  const cust = db.prepare('SELECT id, client_id, name, phone, email FROM customers WHERE id = ?').get(customerId);
   if (!cust) return res.status(404).json({ error: '顧客不存在' });
+
   db.prepare('UPDATE customers SET bv_customer_id = ?, updated_at = ? WHERE id = ?')
     .run(valToWrite, Date.now(), customerId);
+
+  // 連結時順便補齊本地資料（不覆蓋已有欄位）
+  let synced = null;
+  if (!isUnlink) {
+    try {
+      const client = getClient(cust.client_id);
+      if (client && (client.bv_email || client.bv_api_key_enc)) {
+        const r = await bvFetchCustomer(client, bvId);
+        if (r.ok && r.customer) {
+          const updates = {};
+          if (!cust.name && r.customer.fullName) updates.name = r.customer.fullName;
+          if (!cust.phone && r.customer.phone) updates.phone = r.customer.phone;
+          if (!cust.email && r.customer.email) updates.email = r.customer.email;
+          if (Object.keys(updates).length) {
+            const sets = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+            db.prepare(`UPDATE customers SET ${sets}, updated_at = ? WHERE id = ?`)
+              .run(...Object.values(updates), Date.now(), customerId);
+          }
+          synced = { fullName: r.customer.fullName, email: r.customer.email, phone: r.customer.phone, level: r.customer.memberLevel?.name };
+        }
+      }
+    } catch { /* sync 失敗不影響連結 */ }
+  }
+
   insertAuditLog({
     client_id: cust.client_id, user_id: req.session?.user_id,
     action: isUnlink ? 'bvshop.unlink_customer' : 'bvshop.link_customer',
     target_type: 'customer', target_id: customerId,
     detail: JSON.stringify({ bv_customer_id: valToWrite }),
   });
-  res.json({ ok: true, bv_customer_id: valToWrite });
+  res.json({ ok: true, bv_customer_id: valToWrite, synced });
+});
+
+// ─── 智能搜尋 BV 顧客 GET /api/customers/:id/bv-search?q=xxx ───
+// q: 純數字當電話 + 含 @ 當 email + 否則 line userid
+router.get('/customers/:id/bv-search', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const q = String(req.query?.q || '').trim();
+  if (!q) return res.status(400).json({ error: '請提供 q' });
+  const ctx = getClientForCustomer(customerId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+  try {
+    // 純數字 + 看起來像 BV id（≤ 8 位）→ 直接 fetch by ID 試
+    if (/^\d{1,8}$/.test(q)) {
+      const r = await bvFetchCustomer(ctx.client, parseInt(q, 10));
+      if (r.ok && r.customer) {
+        return res.json({ ok: true, customers: [r.customer], matchedBy: 'id' });
+      }
+    }
+    const r = await searchBvCustomers(ctx.client, q);
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── 發送購物金 POST /api/customers/:id/bv-send-point ───

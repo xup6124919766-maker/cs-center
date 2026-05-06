@@ -1607,28 +1607,75 @@ const loadBvActions = async (customerId, clientId) => {
   }
 };
 
-// ─── 連結 BV 會員 ───
-const bvLinkConfirm = async () => {
-  const bvId = parseInt($('#bv-link-id').value, 10);
-  const statusEl = $('#bv-link-status-msg');
-  if (!bvId) { statusEl.textContent = '請輸入 BV 會員 ID'; return; }
+// ─── 搜尋並連結 BV 會員（支援 email / 電話 / LINE userid / BV ID）───
+const bvDoLink = async (bvId, displayName) => {
   if (!state.activeConvId) return;
   const conv = state.conversations?.find(c => c.id === state.activeConvId);
   const customerId = conv?.customer_id;
-  if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
+  if (!customerId) return;
+  const statusEl = $('#bv-link-status-msg');
   statusEl.textContent = '連結中…';
   try {
     const r = await api('PUT', `/api/customers/${customerId}/bv-link`, { bv_customer_id: bvId });
     if (r.ok) {
-      statusEl.textContent = '✅ 連結成功';
-      toast(`已連結 BV 會員 #${bvId}`, 'success');
-      setTimeout(() => loadBvActions(customerId, state.currentClientId), 500);
+      const synced = r.synced ? `（已同步：${[r.synced.fullName, r.synced.email, r.synced.phone, r.synced.level].filter(Boolean).join(' / ')}）` : '';
+      statusEl.textContent = `✅ 連結成功 ${synced}`;
+      toast(`已連結 ${displayName || ('BV #' + bvId)}`, 'success');
+      // 重整顧客視圖（補齊資料會更新）
+      setTimeout(() => {
+        loadBvActions(customerId, state.currentClientId);
+        loadConversations?.();
+      }, 500);
     } else {
       statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
     }
-  } catch (e) {
-    statusEl.textContent = '❌ ' + e.message;
-  }
+  } catch (e) { statusEl.textContent = '❌ ' + e.message; }
+};
+
+const bvLinkConfirm = async () => {
+  const q = $('#bv-link-id').value.trim();
+  const statusEl = $('#bv-link-status-msg');
+  const resultsEl = $('#bv-link-results');
+  resultsEl.innerHTML = '';
+  if (!q) { statusEl.textContent = '請輸入 email / 電話 / LINE userid / BV ID'; return; }
+  if (!state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
+
+  statusEl.textContent = '搜尋中…';
+  try {
+    const r = await api('GET', `/api/customers/${customerId}/bv-search?q=${encodeURIComponent(q)}`);
+    if (!r.ok) { statusEl.textContent = '❌ ' + (r.error || '搜尋失敗'); return; }
+    const list = r.customers || [];
+    if (!list.length) { statusEl.textContent = `❌ 找不到符合「${q}」的會員`; return; }
+    if (list.length === 1) {
+      // 自動連結
+      const c = list[0];
+      const display = `${c.fullName || '(無名)'} · ${c.email || c.phone || c.lineUid || '#' + c.id}`;
+      statusEl.textContent = `找到唯一符合：${display}，自動連結中…`;
+      await bvDoLink(c.id, display);
+      return;
+    }
+    // 多筆 → 顯示清單讓 agent 點選
+    statusEl.textContent = `找到 ${list.length} 筆符合，請選擇：`;
+    resultsEl.innerHTML = list.slice(0, 10).map(c => `
+      <div class="bv-link-row" data-bv-id="${c.id}" style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#fff;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:4px;cursor:pointer;font-size:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:500;">${esc(c.fullName || '(無名)')}</div>
+          <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${esc(c.email || '')} ${c.phone ? '· ' + esc(c.phone) : ''} ${c.memberLevel?.name ? '· ' + esc(c.memberLevel.name) : ''}
+          </div>
+        </div>
+        <button class="btn btn-primary" style="font-size:11px;padding:4px 10px;">連結</button>
+      </div>
+    `).join('');
+    resultsEl.querySelectorAll('.bv-link-row').forEach(row => {
+      const bvId = parseInt(row.dataset.bvId, 10);
+      const display = row.querySelector('div > div')?.textContent || ('BV #' + bvId);
+      row.onclick = () => bvDoLink(bvId, display);
+    });
+  } catch (e) { statusEl.textContent = '❌ ' + e.message; }
 };
 const bvUnlink = async () => {
   if (!confirm('解除此顧客與 BV 的連結？')) return;

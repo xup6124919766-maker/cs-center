@@ -330,9 +330,10 @@
 
             <!-- 未連結 BV 時顯示 -->
             <div id="bv-link-prompt" style="display:none;background:#fff7e6;padding:10px;border-radius:var(--radius-sm);margin-bottom:8px;">
-              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">⚠️ 此顧客尚未連結 BV 會員，先連結才能發購物金/改資料</div>
-              <input id="bv-link-id" type="number" placeholder="BV 會員 ID（去 BV 後台找，例 561）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
-              <button class="btn btn-primary" id="bv-link-confirm" style="width:100%;font-size:12px;padding:6px;">🔗 連結</button>
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">⚠️ 此顧客尚未連結 BV 會員</div>
+              <input id="bv-link-id" type="text" placeholder="email / 電話 / LINE userid / BV 會員 ID" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <button class="btn btn-primary" id="bv-link-confirm" style="width:100%;font-size:12px;padding:6px;">🔍 搜尋並連結</button>
+              <div id="bv-link-results" style="margin-top:8px;"></div>
               <div id="bv-link-status-msg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
             </div>
 
