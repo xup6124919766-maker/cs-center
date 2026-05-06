@@ -293,6 +293,30 @@ const getClientForOrder = (orderId) => {
   return { order, client };
 };
 
+// ─── 手動連結/解除 BV 會員 PUT /api/customers/:id/bv-link ───
+// body: { bv_customer_id: 123 } 連結；{ bv_customer_id: 0 } 解除
+router.put('/customers/:id/bv-link', (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const raw = req.body?.bv_customer_id;
+  if (raw === undefined || raw === null) return res.status(400).json({ error: '請提供 bv_customer_id' });
+  const bvId = parseInt(raw, 10);
+  const isUnlink = bvId === 0;
+  const valToWrite = isUnlink ? null : bvId;
+  if (!isUnlink && (isNaN(bvId) || bvId < 1)) return res.status(400).json({ error: 'bv_customer_id 格式錯誤' });
+  const cust = db.prepare('SELECT id, client_id FROM customers WHERE id = ?').get(customerId);
+  if (!cust) return res.status(404).json({ error: '顧客不存在' });
+  db.prepare('UPDATE customers SET bv_customer_id = ?, updated_at = ? WHERE id = ?')
+    .run(valToWrite, Date.now(), customerId);
+  insertAuditLog({
+    client_id: cust.client_id, user_id: req.session?.user_id,
+    action: isUnlink ? 'bvshop.unlink_customer' : 'bvshop.link_customer',
+    target_type: 'customer', target_id: customerId,
+    detail: JSON.stringify({ bv_customer_id: valToWrite }),
+  });
+  res.json({ ok: true, bv_customer_id: valToWrite });
+});
+
 // ─── 發送購物金 POST /api/customers/:id/bv-send-point ───
 router.post('/customers/:id/bv-send-point', async (req, res) => {
   if (!requireAgent(req, res)) return;

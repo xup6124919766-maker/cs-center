@@ -1565,30 +1565,78 @@ const loadCustomerOrders = async (customerId, clientId) => {
   } catch { section.style.display = 'none'; }
 };
 
-// ─── BV 動作面板：載入 + 顯示連結狀態 ───
+// ─── BV 動作面板：根據業主有無設 BV / 顧客有無連結，渲染對應 UI ───
 const loadBvActions = async (customerId, clientId) => {
   const section = $('#bv-actions-section');
   const statusEl = $('#bv-link-status');
+  const linkPrompt = $('#bv-link-prompt');
+  const actionBtns = $('#bv-actions-buttons');
   if (!section || !customerId || !clientId) {
     if (section) section.style.display = 'none';
     return;
   }
+  // 先檢查業主有沒設 BV（從 client info 看 has_bv_api_key）
+  try {
+    const cdata = await api('GET', `/api/clients`);
+    const cinfo = cdata?.clients?.find(c => c.id === clientId);
+    if (!cinfo?.has_bv_api_key) {
+      section.style.display = 'none';
+      return;
+    }
+  } catch { /* 一般 agent 沒權限取 /api/clients，繼續 */ }
+
   try {
     const data = await api('GET', `/api/customers/${customerId}?client_id=${clientId}`);
     const cust = data.customer || data;
+    section.style.display = '';
     if (cust && cust.bv_customer_id) {
-      section.style.display = '';
       if (statusEl) statusEl.textContent = `BV id #${cust.bv_customer_id}`;
-      // 把姓名/電話/email 預填到 edit form
-      $('#bv-edit-name')?.setAttribute('value', cust.name || '');
-      $('#bv-edit-phone')?.setAttribute('value', cust.phone || '');
-      $('#bv-edit-email')?.setAttribute('value', cust.email || '');
+      linkPrompt.style.display = 'none';
+      actionBtns.style.display = '';
     } else {
-      section.style.display = 'none';
+      if (statusEl) statusEl.textContent = '未連結';
+      linkPrompt.style.display = '';
+      actionBtns.style.display = 'none';
     }
   } catch {
     section.style.display = 'none';
   }
+};
+
+// ─── 連結 BV 會員 ───
+const bvLinkConfirm = async () => {
+  const bvId = parseInt($('#bv-link-id').value, 10);
+  const statusEl = $('#bv-link-status-msg');
+  if (!bvId) { statusEl.textContent = '請輸入 BV 會員 ID'; return; }
+  if (!state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
+  statusEl.textContent = '連結中…';
+  try {
+    const r = await api('PUT', `/api/customers/${customerId}/bv-link`, { bv_customer_id: bvId });
+    if (r.ok) {
+      statusEl.textContent = '✅ 連結成功';
+      toast(`已連結 BV 會員 #${bvId}`, 'success');
+      setTimeout(() => loadBvActions(customerId, state.currentClientId), 500);
+    } else {
+      statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+    }
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+  }
+};
+const bvUnlink = async () => {
+  if (!confirm('解除此顧客與 BV 的連結？')) return;
+  if (!state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) return;
+  try {
+    await api('PUT', `/api/customers/${customerId}/bv-link`, { bv_customer_id: 0 });
+    toast('已解除連結', 'success');
+    loadBvActions(customerId, state.currentClientId);
+  } catch (e) { toast('失敗：' + e.message, 'error'); }
 };
 
 // ─── 發購物金 ───
@@ -2602,12 +2650,16 @@ document.addEventListener('keydown', (e) => {
 
 // ─── BV 動作面板按鈕綁定 ───
 const initBvActions = () => {
+  const linkConfirm = $('#bv-link-confirm');
+  const unlink = $('#bv-unlink-btn');
   const send = $('#bv-send-point-btn');
   const sendConfirm = $('#bv-send-point-confirm');
   const sendCancel = $('#bv-send-point-cancel');
   const edit = $('#bv-edit-customer-btn');
   const editConfirm = $('#bv-edit-customer-confirm');
   const editCancel = $('#bv-edit-customer-cancel');
+  if (linkConfirm) linkConfirm.onclick = bvLinkConfirm;
+  if (unlink) unlink.onclick = bvUnlink;
   if (send) send.onclick = bvOpenSendPoint;
   if (sendConfirm) sendConfirm.onclick = bvSendPointConfirm;
   if (sendCancel) sendCancel.onclick = () => $('#bv-send-point-form').style.display = 'none';

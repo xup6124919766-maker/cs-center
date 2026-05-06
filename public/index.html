@@ -320,16 +320,27 @@
             <div id="orders-list" style="font-size:12px;"></div>
           </div>
 
-          <!-- BV SHOP 動作面板（顧客連結 BV 才顯示）-->
+          <!-- BV SHOP 動作面板（業主有設 BV 就顯示）-->
           <div class="rpanel-section" id="bv-actions-section" style="display:none;">
             <h3 style="display:flex;align-items:center;gap:6px;">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401H4.105l.232 1.16h8.412a.5.5 0 0 1 .497.45l.5 5a.5.5 0 1 1-.995.1l-.453-4.55H4.337a.5.5 0 0 1-.49-.402L2.61 4H1.61L1.244 2.5h-.244A.5.5 0 0 1 0 1.5zm5 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm6 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
               BV 動作
               <span id="bv-link-status" style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;"></span>
             </h3>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+
+            <!-- 未連結 BV 時顯示 -->
+            <div id="bv-link-prompt" style="display:none;background:#fff7e6;padding:10px;border-radius:var(--radius-sm);margin-bottom:8px;">
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">⚠️ 此顧客尚未連結 BV 會員，先連結才能發購物金/改資料</div>
+              <input id="bv-link-id" type="number" placeholder="BV 會員 ID（去 BV 後台找，例 561）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <button class="btn btn-primary" id="bv-link-confirm" style="width:100%;font-size:12px;padding:6px;">🔗 連結</button>
+              <div id="bv-link-status-msg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+            </div>
+
+            <!-- 已連結 BV 時顯示 -->
+            <div id="bv-actions-buttons" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
               <button class="btn btn-secondary" id="bv-send-point-btn" style="font-size:12px;">💰 發購物金</button>
               <button class="btn btn-secondary" id="bv-edit-customer-btn" style="font-size:12px;">✏️ 改 BV 資料</button>
+              <button class="btn btn-secondary" id="bv-unlink-btn" style="font-size:11px;color:var(--muted);">解除連結</button>
             </div>
 
             <!-- 發購物金 inline form -->
