@@ -690,5 +690,69 @@ const _origCheckoutObserver = new MutationObserver(() => {
 const _sendBtn = document.getElementById('send-btn');
 if (_sendBtn) _origCheckoutObserver.observe(_sendBtn, { attributes: true, attributeFilter: ['disabled'] });
 </script>
+
+<!-- BV 訂單詳情 modal（不跳頁）-->
+<div id="bv-order-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:8px;max-width:560px;width:100%;max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;">
+      <div style="font-weight:600;font-size:14px;">BV 訂單詳情 <span id="bv-order-modal-uid" style="color:#888;font-weight:400;font-size:12px;"></span></div>
+      <button onclick="closeBvOrderModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1;">&times;</button>
+    </div>
+    <div id="bv-order-modal-body" style="padding:16px 20px;font-size:13px;line-height:1.6;">載入中…</div>
+  </div>
+</div>
+<script>
+window.closeBvOrderModal = () => { document.getElementById('bv-order-modal').style.display = 'none'; };
+window.openBvOrderModal = async (orderId) => {
+  const modal = document.getElementById('bv-order-modal');
+  const body = document.getElementById('bv-order-modal-body');
+  const uidEl = document.getElementById('bv-order-modal-uid');
+  uidEl.textContent = '';
+  body.innerHTML = '載入中…';
+  modal.style.display = 'flex';
+  try {
+    const r = await fetch(`/api/orders/${orderId}/bv-detail`, { credentials: 'include' });
+    const data = await r.json();
+    if (!data.ok) { body.innerHTML = `<div style="color:#c00;">❌ ${data.error || data.error || '載入失敗'}</div>`; return; }
+    const o = data.order;
+    uidEl.textContent = `#${o.uid || o.id}`;
+    const oStatusMap = { 1:'已成立', 2:'待確認', 4:'已完成', '-1':'異常單', '-3':'已取消' };
+    const pStatusMap = { 1:'未付款', 2:'已付款', '-1':'已退款', '-4':'其他' };
+    const lStatusMap = { 1:'未出貨', 2:'處理中', 3:'已出貨', 4:'已配達', 5:'已取貨', '-1':'已退貨' };
+    const items = (o.orderItems || []).map(it =>
+      `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #eee;">
+         <img src="${it.photo || ''}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;background:#f5f5f5;" />
+         <div style="flex:1;">
+           <div style="font-weight:500;">${it.name || ''}</div>
+           <div style="color:#888;font-size:11px;">SKU: ${it.sku || '-'} · NT$${it.price} × ${it.quantity}</div>
+         </div>
+         <div style="font-weight:600;color:#1b7c3e;">NT$${it.totalPrice}</div>
+       </div>`).join('');
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin-bottom:12px;">
+        <div style="color:#888;">建立時間</div><div>${o.createdAt || '-'}</div>
+        <div style="color:#888;">付款時間</div><div>${o.paidAt || '-'}</div>
+        <div style="color:#888;">出貨時間</div><div>${o.shipmentAt || '-'}</div>
+        <div style="color:#888;">訂單狀態</div><div><b>${oStatusMap[o.orderStatus] || o.orderStatus}</b></div>
+        <div style="color:#888;">付款狀態</div><div><b>${pStatusMap[o.paymentStatus] || o.paymentStatus}</b> (${o.paymentMethod || '-'})</div>
+        <div style="color:#888;">出貨狀態</div><div><b>${lStatusMap[o.logisticStatus] || o.logisticStatus}</b></div>
+        <div style="color:#888;">收件人</div><div>${o.receiverName || '-'} ${o.receiverPhone || ''}</div>
+        <div style="color:#888;">地址</div><div>${o.receiverAddress || (o.cvs?.storeName !== 'NA' ? (o.cvs?.storeName + ' #' + o.cvs?.storeNum) : '-')}</div>
+        <div style="color:#888;">備註</div><div>${o.remark || '-'}</div>
+        <div style="color:#888;">總金額</div><div style="font-weight:600;color:#1b7c3e;">NT$${o.totalPrice} ${o.shippingFee ? `(運費 NT$${o.shippingFee})` : ''}</div>
+      </div>
+      <div style="font-weight:600;font-size:12px;color:#666;margin:8px 0 4px;">商品 (${(o.orderItems||[]).length})</div>
+      ${items || '<div style="color:#999;">無商品</div>'}
+      ${o.checkoutUrl ? `<div style="margin-top:14px;"><a href="${o.checkoutUrl}" target="_blank" style="color:#0066cc;font-size:12px;">→ 在 BV 後台開啟</a></div>` : ''}
+    `;
+  } catch (e) {
+    body.innerHTML = `<div style="color:#c00;">❌ ${e.message}</div>`;
+  }
+};
+// 點 modal 背景關閉
+document.getElementById('bv-order-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'bv-order-modal') window.closeBvOrderModal();
+});
+</script>
 </body>
 </html>

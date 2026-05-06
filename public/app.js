@@ -312,6 +312,8 @@ const api = async (method, path, body) => {
 };
 
 // ─── Toast（重新設計：右下角浮動，有關閉按鈕，5 秒自動消失）───
+// alias for newer code
+const toast = (msg, type = '') => showToast(msg, type);
 const showToast = (msg, type = '') => {
   const container = $('#toast-container');
   if (!container) return;
@@ -1544,7 +1546,9 @@ const loadCustomerOrders = async (customerId, clientId) => {
       const isBv = o.source === 'bvshop';
       return `<div style="padding:9px 0;border-bottom:1px solid var(--border-light);" data-order-id="${o.id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
-          <code style="font-size:11px;color:var(--info);font-family:monospace;">${esc(o.external_order_id)}</code>
+          ${isBv
+            ? `<a href="javascript:void(0)" onclick="openBvOrderModal(${o.id})" style="font-size:11px;color:var(--info);font-family:monospace;text-decoration:none;cursor:pointer;">${esc(o.external_order_id)} 🔍</a>`
+            : `<code style="font-size:11px;color:var(--info);font-family:monospace;">${esc(o.external_order_id)}</code>`}
           <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);${style}">${esc(label)}</span>
         </div>
         <div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">NT$ ${o.total_amount ?? '-'} ${itemSummary ? '· ' + esc(itemSummary) : ''}</div>
@@ -1763,6 +1767,114 @@ const bvOrderCreateLogistic = async (orderId, btn) => {
 // 暴露給 inline onclick
 window.bvOrderChangeStatus = bvOrderChangeStatus;
 window.bvOrderCreateLogistic = bvOrderCreateLogistic;
+
+// ─── Slash commands（在訊息輸入框打 /xxx）───
+const SLASH_HELP = `可用 slash 指令：
+  /order <BV訂單ID>           開訂單詳情 modal（從 BV 即時抓）
+  /sku <SKU>                  查商品庫存 → 結果寫進備忘
+  /point <金額> <標題>         發購物金給目前對話顧客
+  /track                      把目前顧客最近一筆訂單的追蹤連結貼進輸入框
+  /help                       顯示此說明`;
+
+const handleSlashCommand = async (raw) => {
+  const trimmed = raw.trim();
+  const m = trimmed.match(/^\/(\w+)(?:\s+(.+))?$/);
+  if (!m) return false;
+  const cmd = m[1].toLowerCase();
+  const arg = (m[2] || '').trim();
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  const clientId = state.currentClientId;
+
+  switch (cmd) {
+    case 'help':
+      toast(SLASH_HELP, 'info', 8000);
+      return true;
+
+    case 'order': {
+      if (!arg) { toast('用法：/order <BV訂單ID 或 UID>', 'warning'); return true; }
+      // 試本地：external_order_id 對得到的話走本地 modal
+      try {
+        const data = await api('GET', `/api/orders?client_id=${clientId}&limit=200`);
+        const local = (data.orders || []).find(o => String(o.external_order_id) === arg);
+        if (local) { window.openBvOrderModal(local.id); return true; }
+        // 否則直接 BV 抓
+        const r = await api('GET', `/api/bv/order/${encodeURIComponent(arg)}?client_id=${clientId}`);
+        if (r.ok) {
+          // 用 modal 包裝顯示
+          window.openBvOrderModalFromData?.(r.order) || (() => {
+            // fallback：將 order 暫存後手動開啟
+            const fakeId = 'remote_' + arg;
+            window._bvRemoteOrder = r.order;
+            const modal = document.getElementById('bv-order-modal');
+            const body = document.getElementById('bv-order-modal-body');
+            const uidEl = document.getElementById('bv-order-modal-uid');
+            uidEl.textContent = `#${r.order.uid || r.order.id}`;
+            body.innerHTML = `<pre style="white-space:pre-wrap;font-size:11px;font-family:monospace;background:#f8f8f8;padding:10px;border-radius:4px;">${esc(JSON.stringify(r.order, null, 2).slice(0, 4000))}</pre>`;
+            modal.style.display = 'flex';
+          })();
+        } else {
+          toast(`找不到訂單：${arg}`, 'error');
+        }
+      } catch (e) { toast(e.message, 'error'); }
+      return true;
+    }
+
+    case 'sku': {
+      if (!arg) { toast('用法：/sku <SKU>', 'warning'); return true; }
+      try {
+        const r = await api('GET', `/api/bv/inventory/${encodeURIComponent(arg)}?client_id=${clientId}`);
+        if (r.ok) {
+          const inv = r.inventory;
+          const stock = inv.quantity ?? inv.stock ?? inv.amount ?? '?';
+          const note = `📦 SKU ${arg}：庫存 ${stock}${inv.name ? '（' + inv.name + '）' : ''}`;
+          toast(note, 'success', 6000);
+          // 把資訊放進輸入框（agent 可決定要不要送給顧客）
+          const inputEl = $('#msg-input');
+          inputEl.value = note;
+          inputEl.dispatchEvent(new Event('input'));
+        } else {
+          toast(`查不到 SKU ${arg}：${r.error}`, 'error');
+        }
+      } catch (e) { toast(e.message, 'error'); }
+      return true;
+    }
+
+    case 'point': {
+      if (!customerId) { toast('此對話無顧客', 'warning'); return true; }
+      const parts = arg.split(/\s+/);
+      const point = parseInt(parts[0], 10);
+      const title = parts.slice(1).join(' ').trim();
+      if (!point || !title) { toast('用法：/point <金額> <標題>（例：/point 100 客訴補償）', 'warning'); return true; }
+      try {
+        const r = await api('POST', `/api/customers/${customerId}/bv-send-point`, { title, point });
+        if (r.ok) toast(`✅ 已發送 ${point} 點購物金（${title}）`, 'success');
+        else toast(`❌ ${r.error || ''}（記得先連結 BV 會員）`, 'error');
+      } catch (e) { toast(e.message, 'error'); }
+      return true;
+    }
+
+    case 'track': {
+      if (!customerId) { toast('此對話無顧客', 'warning'); return true; }
+      try {
+        const data = await api('GET', `/api/orders?customer_id=${customerId}&client_id=${clientId}&limit=10`);
+        const orders = data.orders || [];
+        const latest = orders.find(o => o.tracking_number) || orders[0];
+        if (!latest) { toast('此顧客無訂單', 'warning'); return true; }
+        if (!latest.tracking_number) { toast(`最新訂單 ${latest.external_order_id} 尚無追蹤碼`, 'warning'); return true; }
+        const txt = `您的訂單 ${latest.external_order_id} 物流追蹤：${latest.tracking_number}\n查詢：https://www.t-cat.com.tw/inquire/trace.aspx?no=${latest.tracking_number}`;
+        const inputEl = $('#msg-input');
+        inputEl.value = txt;
+        inputEl.dispatchEvent(new Event('input'));
+        toast('追蹤訊息已填入輸入框', 'success');
+      } catch (e) { toast(e.message, 'error'); }
+      return true;
+    }
+
+    default:
+      return false; // 不認得就當一般訊息
+  }
+};
 
 // ─── 會員資訊（游戲化強化）───
 const STAGE_LABEL = { new: '新客', active: '活躍', vip: 'VIP', at_risk: '流失預警', lost: '已流失' };
@@ -2079,6 +2191,17 @@ const sendMessage = async () => {
   const input  = $('#msg-input');
   let content = input.value.trim();
   if (!content || !state.activeConvId) return;
+
+  // ─── Slash commands（不送出，當場執行 BV 操作）───
+  if (content.startsWith('/')) {
+    const handled = await handleSlashCommand(content);
+    if (handled) {
+      input.value = '';
+      $('#send-btn').disabled = true;
+      input.style.height = 'auto';
+      return;
+    }
+  }
 
   // ─── 品牌教練門檻確認 ───
   if (state.inputMode !== 'note' && state._bcLastScore != null && state._bcThreshold > 0) {

@@ -3677,7 +3677,7 @@ httpServer.listen(PORT, () => {
   // 架構已鋪好，等用戶提供 BV API key 才實際拉資料（stub mode 會直接跳過）
   setInterval(() => {
     wrapScheduler('bv_sync', async () => {
-      const clients = db.prepare("SELECT id FROM clients WHERE bv_api_key_enc IS NOT NULL AND bv_shop_url IS NOT NULL").all();
+      const clients = db.prepare("SELECT id FROM clients WHERE (bv_email IS NOT NULL AND bv_password_enc IS NOT NULL) OR bv_api_key_enc IS NOT NULL").all();
       if (!clients.length) return { processed: 0, success: 0, note: 'BV API key 尚未設定' };
       let success = 0;
       for (const c of clients) {

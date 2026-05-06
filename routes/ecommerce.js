@@ -19,6 +19,7 @@ import { decrypt } from '../lib/crypto.js';
 import {
   syncOrdersForClient, verifyCredentials as bvVerifyCreds, verifyToken as bvVerifyToken,
   sendCustomerPoint, updateBvCustomer, updateBvOrder, createEcpayLogistic,
+  fetchOrder as bvFetchOrder, fetchInventory as bvFetchInventory,
 } from '../lib/bvshop.js';
 import { recordBilling } from '../lib/billing.js';
 
@@ -407,6 +408,46 @@ router.put('/orders/:id/bv-update', async (req, res) => {
         detail: JSON.stringify({ bv_order_id: ctx.order.external_order_id, fields: cleaned }),
       });
     }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── BV 訂單詳情（從 BV 即時抓）GET /api/orders/:id/bv-detail ───
+router.get('/orders/:id/bv-detail', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const orderId = parseInt(req.params.id, 10);
+  const ctx = getClientForOrder(orderId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+  try {
+    const r = await bvFetchOrder(ctx.client, ctx.order.external_order_id);
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── BV 庫存查詢 GET /api/bv/inventory/:sku?client_id=N ───
+router.get('/bv/inventory/:sku', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const clientId = resolveClientId(req) ?? parseInt(req.query.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const client = getClient(clientId);
+  if (!client) return res.status(404).json({ error: '業主不存在' });
+  if (!client.bv_email && !client.bv_api_key_enc) return res.status(400).json({ error: '業主未設定 BV' });
+  try {
+    const r = await bvFetchInventory(client, req.params.sku);
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── BV 直接訂單查詢（by external_order_id 不必先在本地）GET /api/bv/order/:bvOrderId?client_id=N ───
+router.get('/bv/order/:bvOrderId', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const clientId = resolveClientId(req) ?? parseInt(req.query.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const client = getClient(clientId);
+  if (!client) return res.status(404).json({ error: '業主不存在' });
+  if (!client.bv_email && !client.bv_api_key_enc) return res.status(400).json({ error: '業主未設定 BV' });
+  try {
+    const r = await bvFetchOrder(client, req.params.bvOrderId);
     res.json(r);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
