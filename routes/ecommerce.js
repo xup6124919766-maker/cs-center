@@ -16,7 +16,10 @@ import { emitToClient } from '../lib/realtime.js';
 import { logger as rootLogger } from '../lib/logger.js';
 import { checkAndEnrollJourneyTrigger } from '../lib/journey.js';
 import { decrypt } from '../lib/crypto.js';
-import { syncOrdersForClient, verifyCredentials as bvVerifyCreds, verifyToken as bvVerifyToken } from '../lib/bvshop.js';
+import {
+  syncOrdersForClient, verifyCredentials as bvVerifyCreds, verifyToken as bvVerifyToken,
+  sendCustomerPoint, updateBvCustomer, updateBvOrder, createEcpayLogistic,
+} from '../lib/bvshop.js';
 import { recordBilling } from '../lib/billing.js';
 
 const log = rootLogger.child({ module: 'routes/ecommerce' });
@@ -259,6 +262,149 @@ router.post('/clients/:id/bv-test-token', async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// ─── 客服動作：取本地顧客資料 helper ───
+const requireAgent = (req, res) => {
+  const role = req.session?.role;
+  if (role !== 'admin' && role !== 'agent') {
+    res.status(403).json({ error: '需 agent / admin 權限' });
+    return null;
+  }
+  return role;
+};
+
+const getClientForCustomer = (customerId) => {
+  const cust = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+  if (!cust) return { error: '顧客不存在' };
+  const client = getClient(cust.client_id);
+  if (!client) return { error: '業主不存在' };
+  if (!client.bv_email && !client.bv_api_key_enc) return { error: '業主未設定 BV 憑證' };
+  return { cust, client };
+};
+
+const getClientForOrder = (orderId) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) return { error: '訂單不存在' };
+  if (order.source !== 'bvshop') return { error: '此訂單非 BV 來源' };
+  const client = getClient(order.client_id);
+  if (!client) return { error: '業主不存在' };
+  if (!client.bv_email && !client.bv_api_key_enc) return { error: '業主未設定 BV 憑證' };
+  return { order, client };
+};
+
+// ─── 發送購物金 POST /api/customers/:id/bv-send-point ───
+router.post('/customers/:id/bv-send-point', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const point = parseInt(req.body?.point, 10);
+  const reason = String(req.body?.reason || '').trim();
+  if (!point) return res.status(400).json({ error: '請提供 point' });
+
+  const ctx = getClientForCustomer(customerId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+  if (!ctx.cust.bv_customer_id) return res.status(400).json({ error: '此顧客尚未連結 BV（先收到一筆 BV 訂單會自動連結）' });
+
+  try {
+    const r = await sendCustomerPoint(ctx.client, ctx.cust.bv_customer_id, point, reason);
+    if (r.ok) {
+      insertAuditLog({
+        client_id: ctx.client.id, user_id: req.session?.user_id,
+        action: 'bvshop.send_point',
+        target_type: 'customer', target_id: customerId,
+        detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, point, reason }),
+      });
+    }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── 改顧客資料 PUT /api/customers/:id/bv-update ───
+router.put('/customers/:id/bv-update', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const fields = req.body?.fields || {};
+  // 允許欄位 whitelist
+  const allowed = ['fullName', 'phone', 'email', 'city', 'address', 'memberLevelId', 'isBlacklist'];
+  const cleaned = {};
+  for (const k of allowed) if (fields[k] !== undefined) cleaned[k] = fields[k];
+  if (!Object.keys(cleaned).length) return res.status(400).json({ error: '沒有要更新的欄位' });
+
+  const ctx = getClientForCustomer(customerId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+  if (!ctx.cust.bv_customer_id) return res.status(400).json({ error: '此顧客尚未連結 BV' });
+
+  try {
+    const r = await updateBvCustomer(ctx.client, ctx.cust.bv_customer_id, cleaned);
+    if (r.ok) {
+      // 同步寫回我方 customer 表
+      const localFields = {};
+      if (cleaned.fullName) localFields.name = cleaned.fullName;
+      if (cleaned.phone !== undefined) localFields.phone = cleaned.phone;
+      if (cleaned.email !== undefined) localFields.email = cleaned.email;
+      if (Object.keys(localFields).length) {
+        const sets = Object.keys(localFields).map(k => `${k} = ?`).join(', ');
+        db.prepare(`UPDATE customers SET ${sets}, updated_at = ? WHERE id = ?`)
+          .run(...Object.values(localFields), Date.now(), customerId);
+      }
+      insertAuditLog({
+        client_id: ctx.client.id, user_id: req.session?.user_id,
+        action: 'bvshop.update_customer',
+        target_type: 'customer', target_id: customerId,
+        detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, fields: cleaned }),
+      });
+    }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── 改訂單 PUT /api/orders/:id/bv-update ───
+router.put('/orders/:id/bv-update', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const orderId = parseInt(req.params.id, 10);
+  const fields = req.body?.fields || {};
+  const allowed = ['orderStatus', 'paymentStatus', 'logisticStatus', 'note', 'trackingNumber'];
+  const cleaned = {};
+  for (const k of allowed) if (fields[k] !== undefined) cleaned[k] = fields[k];
+  if (!Object.keys(cleaned).length) return res.status(400).json({ error: '沒有要更新的欄位' });
+
+  const ctx = getClientForOrder(orderId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+
+  try {
+    const r = await updateBvOrder(ctx.client, ctx.order.external_order_id, cleaned);
+    if (r.ok) {
+      // 標記本地需重新 sync（簡單做法：直接觸發單筆狀態映射）
+      insertAuditLog({
+        client_id: ctx.client.id, user_id: req.session?.user_id,
+        action: 'bvshop.update_order',
+        target_type: 'order', target_id: orderId,
+        detail: JSON.stringify({ bv_order_id: ctx.order.external_order_id, fields: cleaned }),
+      });
+    }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── 產生綠界物流單 POST /api/orders/:id/bv-create-logistic ───
+router.post('/orders/:id/bv-create-logistic', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const orderId = parseInt(req.params.id, 10);
+  const ctx = getClientForOrder(orderId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+
+  try {
+    const r = await createEcpayLogistic(ctx.client, ctx.order.external_order_id);
+    if (r.ok) {
+      insertAuditLog({
+        client_id: ctx.client.id, user_id: req.session?.user_id,
+        action: 'bvshop.create_logistic',
+        target_type: 'order', target_id: orderId,
+        detail: JSON.stringify({ bv_order_id: ctx.order.external_order_id, response: r.data }),
+      });
+    }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── BV Webhook 入口（不需 outbound token，BV 推給我們）───

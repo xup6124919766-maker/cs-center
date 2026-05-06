@@ -1499,6 +1499,9 @@ const reloadCustomer = async () => {
     // 會員資訊
     loadMembership(state.activeCustomerId, state.currentClientId);
 
+    // BV 動作面板（需顧客已連結 BV）
+    loadBvActions(state.activeCustomerId, state.currentClientId);
+
     // 時間軸按鈕
     const timelineBtn = $('#timeline-btn');
     if (timelineBtn && state.activeCustomerId) {
@@ -1538,17 +1541,177 @@ const loadCustomerOrders = async (customerId, clientId) => {
       let items = [];
       try { items = JSON.parse(o.items_json || '[]'); } catch {}
       const itemSummary = items.slice(0,2).map(i => i.name || i.sku || '商品').join('、') + (items.length > 2 ? '…' : '');
-      return `<div style="padding:9px 0;border-bottom:1px solid var(--border-light);">
+      const isBv = o.source === 'bvshop';
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--border-light);" data-order-id="${o.id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">
           <code style="font-size:11px;color:var(--info);font-family:monospace;">${esc(o.external_order_id)}</code>
           <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);${style}">${esc(label)}</span>
         </div>
         <div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">NT$ ${o.total_amount ?? '-'} ${itemSummary ? '· ' + esc(itemSummary) : ''}</div>
         ${o.tracking_number ? `<div style="font-size:11px;margin-top:3px;"><a href="https://www.t-cat.com.tw/inquire/trace.aspx?no=${esc(o.tracking_number)}" target="_blank" style="color:var(--info);text-decoration:none;">物流追蹤：${esc(o.tracking_number)}</a></div>` : ''}
+        ${isBv ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-secondary bv-order-status-btn" data-order-id="${o.id}" style="font-size:10px;padding:3px 8px;">改狀態</button>
+          <button class="btn btn-secondary bv-order-logistic-btn" data-order-id="${o.id}" style="font-size:10px;padding:3px 8px;">綠界物流單</button>
+        </div>` : ''}
       </div>`;
     }).join('');
+    // 綁訂單動作
+    listEl.querySelectorAll('.bv-order-status-btn').forEach(btn => {
+      btn.onclick = () => bvOrderChangeStatus(parseInt(btn.dataset.orderId, 10));
+    });
+    listEl.querySelectorAll('.bv-order-logistic-btn').forEach(btn => {
+      btn.onclick = () => bvOrderCreateLogistic(parseInt(btn.dataset.orderId, 10), btn);
+    });
   } catch { section.style.display = 'none'; }
 };
+
+// ─── BV 動作面板：載入 + 顯示連結狀態 ───
+const loadBvActions = async (customerId, clientId) => {
+  const section = $('#bv-actions-section');
+  const statusEl = $('#bv-link-status');
+  if (!section || !customerId || !clientId) {
+    if (section) section.style.display = 'none';
+    return;
+  }
+  try {
+    const data = await api('GET', `/api/customers/${customerId}?client_id=${clientId}`);
+    const cust = data.customer || data;
+    if (cust && cust.bv_customer_id) {
+      section.style.display = '';
+      if (statusEl) statusEl.textContent = `BV id #${cust.bv_customer_id}`;
+      // 把姓名/電話/email 預填到 edit form
+      $('#bv-edit-name')?.setAttribute('value', cust.name || '');
+      $('#bv-edit-phone')?.setAttribute('value', cust.phone || '');
+      $('#bv-edit-email')?.setAttribute('value', cust.email || '');
+    } else {
+      section.style.display = 'none';
+    }
+  } catch {
+    section.style.display = 'none';
+  }
+};
+
+// ─── 發購物金 ───
+const bvOpenSendPoint = () => {
+  $('#bv-send-point-form').style.display = '';
+  $('#bv-edit-customer-form').style.display = 'none';
+  $('#bv-point-amount').value = '';
+  $('#bv-point-reason').value = '';
+  $('#bv-send-point-status').textContent = '';
+};
+const bvSendPointConfirm = async () => {
+  const point = parseInt($('#bv-point-amount').value, 10);
+  const reason = $('#bv-point-reason').value.trim();
+  const statusEl = $('#bv-send-point-status');
+  if (!point) { statusEl.textContent = '請輸入金額'; return; }
+  if (!state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
+  statusEl.textContent = '發送中…';
+  try {
+    const r = await api('POST', `/api/customers/${customerId}/bv-send-point`, { point, reason });
+    if (r.ok) {
+      statusEl.textContent = '✅ 已發送';
+      toast(`購物金已發送：${point} 點`, 'success');
+      setTimeout(() => $('#bv-send-point-form').style.display = 'none', 1500);
+    } else {
+      statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+    }
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+  }
+};
+
+// ─── 改 BV 顧客資料 ───
+const bvOpenEditCustomer = () => {
+  $('#bv-edit-customer-form').style.display = '';
+  $('#bv-send-point-form').style.display = 'none';
+  // 把當前顧客資料預填
+  $('#bv-edit-name').value = $('#c-name')?.textContent !== '—' ? ($('#c-name').textContent || '') : '';
+  $('#bv-edit-phone').value = $('#c-phone')?.textContent !== '—' ? ($('#c-phone').textContent || '') : '';
+  $('#bv-edit-email').value = $('#c-email')?.textContent !== '—' ? ($('#c-email').textContent || '') : '';
+  $('#bv-edit-city').value = '';
+  $('#bv-edit-address').value = '';
+  $('#bv-edit-customer-status').textContent = '';
+};
+const bvEditCustomerConfirm = async () => {
+  const fields = {};
+  const get = (id) => $(`#${id}`).value.trim();
+  if (get('bv-edit-name')) fields.fullName = get('bv-edit-name');
+  if (get('bv-edit-phone')) fields.phone = get('bv-edit-phone');
+  if (get('bv-edit-email')) fields.email = get('bv-edit-email');
+  if (get('bv-edit-city')) fields.city = get('bv-edit-city');
+  if (get('bv-edit-address')) fields.address = get('bv-edit-address');
+  const statusEl = $('#bv-edit-customer-status');
+  if (!Object.keys(fields).length) { statusEl.textContent = '至少填一個欄位'; return; }
+  if (!state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
+  statusEl.textContent = '更新中…';
+  try {
+    const r = await api('PUT', `/api/customers/${customerId}/bv-update`, { fields });
+    if (r.ok) {
+      statusEl.textContent = '✅ 已同步';
+      toast('BV 顧客資料已更新', 'success');
+      setTimeout(() => $('#bv-edit-customer-form').style.display = 'none', 1500);
+      // 重新載入顧客
+      if (typeof loadConversations === 'function') loadConversations();
+    } else {
+      statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+    }
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+  }
+};
+
+// ─── 改訂單狀態 ───
+const bvOrderChangeStatus = async (orderId) => {
+  const choice = prompt('改訂單狀態：\n  o1=訂單成立 / o2=待確認 / o4=已完成 / o-3=已取消\n  p1=未付款 / p2=已付款 / p-1=已退款\n  l1=未出貨 / l2=處理中 / l3=已出貨 / l4=已配達 / l-1=已退貨\n\n填代碼（例：l3）：');
+  if (!choice) return;
+  const code = choice.trim();
+  const fields = {};
+  if (code.startsWith('o')) fields.orderStatus = parseInt(code.slice(1), 10);
+  else if (code.startsWith('p')) fields.paymentStatus = parseInt(code.slice(1), 10);
+  else if (code.startsWith('l')) fields.logisticStatus = parseInt(code.slice(1), 10);
+  else { toast('代碼格式錯誤', 'error'); return; }
+  try {
+    const r = await api('PUT', `/api/orders/${orderId}/bv-update`, { fields });
+    if (r.ok) {
+      toast('訂單已更新', 'success');
+      // 重整顧客訂單
+      const cid = state.activeConvId && state.conversations?.find(c=>c.id===state.activeConvId)?.customer_id;
+      if (cid) loadCustomerOrders(cid, state.currentClientId);
+    } else {
+      toast('失敗：' + (r.error || `HTTP ${r.status}`), 'error');
+    }
+  } catch (e) { toast('錯誤：' + e.message, 'error'); }
+};
+
+// ─── 產生綠界物流單 ───
+const bvOrderCreateLogistic = async (orderId, btn) => {
+  if (!confirm('確認對此訂單產生綠界物流單？')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '產生中…'; }
+  try {
+    const r = await api('POST', `/api/orders/${orderId}/bv-create-logistic`);
+    if (r.ok) {
+      toast('物流單已產生', 'success');
+      const cid = state.activeConvId && state.conversations?.find(c=>c.id===state.activeConvId)?.customer_id;
+      if (cid) loadCustomerOrders(cid, state.currentClientId);
+    } else {
+      toast('失敗：' + (r.error || `HTTP ${r.status}`), 'error');
+    }
+  } catch (e) {
+    toast('錯誤：' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '綠界物流單'; }
+  }
+};
+
+// 暴露給 inline onclick
+window.bvOrderChangeStatus = bvOrderChangeStatus;
+window.bvOrderCreateLogistic = bvOrderCreateLogistic;
 
 // ─── 會員資訊（游戲化強化）───
 const STAGE_LABEL = { new: '新客', active: '活躍', vip: 'VIP', at_risk: '流失預警', lost: '已流失' };
@@ -2437,9 +2600,26 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── BV 動作面板按鈕綁定 ───
+const initBvActions = () => {
+  const send = $('#bv-send-point-btn');
+  const sendConfirm = $('#bv-send-point-confirm');
+  const sendCancel = $('#bv-send-point-cancel');
+  const edit = $('#bv-edit-customer-btn');
+  const editConfirm = $('#bv-edit-customer-confirm');
+  const editCancel = $('#bv-edit-customer-cancel');
+  if (send) send.onclick = bvOpenSendPoint;
+  if (sendConfirm) sendConfirm.onclick = bvSendPointConfirm;
+  if (sendCancel) sendCancel.onclick = () => $('#bv-send-point-form').style.display = 'none';
+  if (edit) edit.onclick = bvOpenEditCustomer;
+  if (editConfirm) editConfirm.onclick = bvEditCustomerConfirm;
+  if (editCancel) editCancel.onclick = () => $('#bv-edit-customer-form').style.display = 'none';
+};
+
 // ─── Start ───
 init();
 initCustomerEdit();
+initBvActions();
 
 // ═══════════════════════════════════════════
 //  品牌教練 AI 模式

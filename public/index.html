@@ -320,6 +320,46 @@
             <div id="orders-list" style="font-size:12px;"></div>
           </div>
 
+          <!-- BV SHOP 動作面板（顧客連結 BV 才顯示）-->
+          <div class="rpanel-section" id="bv-actions-section" style="display:none;">
+            <h3 style="display:flex;align-items:center;gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401H4.105l.232 1.16h8.412a.5.5 0 0 1 .497.45l.5 5a.5.5 0 1 1-.995.1l-.453-4.55H4.337a.5.5 0 0 1-.49-.402L2.61 4H1.61L1.244 2.5h-.244A.5.5 0 0 1 0 1.5zm5 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm6 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
+              BV 動作
+              <span id="bv-link-status" style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;"></span>
+            </h3>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+              <button class="btn btn-secondary" id="bv-send-point-btn" style="font-size:12px;">💰 發購物金</button>
+              <button class="btn btn-secondary" id="bv-edit-customer-btn" style="font-size:12px;">✏️ 改 BV 資料</button>
+            </div>
+
+            <!-- 發購物金 inline form -->
+            <div id="bv-send-point-form" style="display:none;background:var(--bg-soft);padding:10px;border-radius:var(--radius-sm);margin-bottom:8px;">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">發送購物金 / 點數給此會員</div>
+              <input id="bv-point-amount" type="number" placeholder="金額（負數=扣除）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <input id="bv-point-reason" type="text" placeholder="原因（顯示於會員後台）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-primary" id="bv-send-point-confirm" style="flex:1;font-size:12px;padding:6px;">確認發送</button>
+                <button class="btn btn-secondary" id="bv-send-point-cancel" style="font-size:12px;padding:6px;">取消</button>
+              </div>
+              <div id="bv-send-point-status" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+            </div>
+
+            <!-- 改 BV 資料 inline form -->
+            <div id="bv-edit-customer-form" style="display:none;background:var(--bg-soft);padding:10px;border-radius:var(--radius-sm);margin-bottom:8px;">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">同步更新 BV 後台 + 本地資料</div>
+              <input id="bv-edit-name" type="text" placeholder="姓名" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:5px;outline:none;" />
+              <input id="bv-edit-phone" type="text" placeholder="電話" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:5px;outline:none;" />
+              <input id="bv-edit-email" type="text" placeholder="Email" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:5px;outline:none;" />
+              <input id="bv-edit-city" type="text" placeholder="縣市" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:5px;outline:none;" />
+              <input id="bv-edit-address" type="text" placeholder="地址" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-primary" id="bv-edit-customer-confirm" style="flex:1;font-size:12px;padding:6px;">儲存到 BV</button>
+                <button class="btn btn-secondary" id="bv-edit-customer-cancel" style="font-size:12px;padding:6px;">取消</button>
+              </div>
+              <div id="bv-edit-customer-status" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+            </div>
+          </div>
+
         <!-- 編輯模式 -->
         <div id="customer-edit" style="display:none;">
           <div class="rpanel-section">
