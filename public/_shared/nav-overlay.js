@@ -23,6 +23,10 @@
         <button class="cs-nav-overlay-fullscreen" title="新分頁開啟">⤢</button>
         <button class="cs-nav-overlay-close" title="關閉 (Esc)">×</button>
       </div>
+      <div class="cs-nav-overlay-loading">
+        <div class="cs-nav-spinner"></div>
+        <div style="margin-top:14px;font-size:13px;color:#666;">載入中…</div>
+      </div>
       <iframe class="cs-nav-overlay-iframe" src="about:blank" allow="clipboard-write"></iframe>
     </div>
   `;
@@ -57,7 +61,24 @@
     #cs-nav-overlay button:hover { background:#eee; color:#000; }
     #cs-nav-overlay .cs-nav-overlay-iframe {
       flex:1; width:100%; border:0; background:#fff;
+      transition: opacity 0.18s ease;
     }
+    #cs-nav-overlay .cs-nav-overlay-iframe.loading { opacity:0; }
+    #cs-nav-overlay .cs-nav-overlay-loading {
+      position:absolute; inset:42px 0 0 0;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background:#fafafa; z-index:1;
+      transition: opacity 0.2s ease;
+    }
+    #cs-nav-overlay .cs-nav-overlay-loading.hidden { opacity:0; pointer-events:none; }
+    #cs-nav-overlay .cs-nav-spinner {
+      width:32px; height:32px;
+      border:3px solid #e8eaf0;
+      border-top-color:#5856d6;
+      border-radius:50%;
+      animation: csSpin 0.7s linear infinite;
+    }
+    @keyframes csSpin { to { transform: rotate(360deg) } }
     @keyframes csFadeIn { from { opacity:0 } to { opacity:1 } }
     @keyframes csSlideUp { from { transform:translateY(8px); opacity:0 } to { transform:translateY(0); opacity:1 } }
   `;
@@ -67,13 +88,24 @@
   const overlayEl = overlay;
   const iframeEl = overlay.querySelector('.cs-nav-overlay-iframe');
   const titleEl  = overlay.querySelector('.cs-nav-overlay-title');
+  const loadingEl = overlay.querySelector('.cs-nav-overlay-loading');
 
   const openOverlay = (url, title) => {
     titleEl.textContent = title || url;
+    // 重設 loading 狀態
+    loadingEl.classList.remove('hidden');
+    iframeEl.classList.add('loading');
     iframeEl.src = url;
     overlayEl.classList.add('open');
     document.body.style.overflow = 'hidden';
   };
+  // iframe 載完後隱藏 loading
+  iframeEl.addEventListener('load', () => {
+    if (iframeEl.src && iframeEl.src !== 'about:blank') {
+      loadingEl.classList.add('hidden');
+      iframeEl.classList.remove('loading');
+    }
+  });
   const closeOverlay = () => {
     overlayEl.classList.remove('open');
     iframeEl.src = 'about:blank';
