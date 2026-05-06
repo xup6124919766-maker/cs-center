@@ -1446,10 +1446,15 @@ app.use(requireAuth);
 // ─── B3. CSRF 驗證（requireAuth 之後，static 之前）───
 app.use(csrfMiddleware);
 
-// 強制 JS/CSS/HTML 不 cache（防止舊版被瀏覽器抓）
+// 靜態快取策略（平衡效能 vs 部署立即生效）
+//   .html: 不 cache（每次拉新版進入點）
+//   .js/.css: must-revalidate + ETag（200 KB JS 不再每次重抓，靠 304 確認）
 app.use((req, res, next) => {
-  if (/\.(js|css|html)$/.test(req.path)) {
+  if (/\.html$/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else if (/\.(js|css)$/.test(req.path)) {
+    // ETag 在 express.static 自動產生，瀏覽器會帶 If-None-Match → 304 not modified
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   }
   next();
 });
