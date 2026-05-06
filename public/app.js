@@ -1556,11 +1556,13 @@ const loadCustomerOrders = async (customerId, clientId) => {
   const countEl = $('#orders-count');
   if (!section || !listEl) return;
   try {
-    const data = await api('GET', `/api/orders?customer_id=${customerId}&client_id=${clientId}&limit=5`);
+    const data = await api('GET', `/api/orders?customer_id=${customerId}&client_id=${clientId}&limit=20`);
     const orders = data.orders || [];
     if (!orders.length) { section.style.display = 'none'; return; }
     section.style.display = '';
     countEl.textContent = `(${orders.length})`;
+    listEl.style.maxHeight = '320px';
+    listEl.style.overflowY = 'auto';
     listEl.innerHTML = orders.map(o => {
       const style = orderStatusStyle[o.status] || orderStatusStyle.pending;
       const label = orderStatusLabel[o.status] || o.status;

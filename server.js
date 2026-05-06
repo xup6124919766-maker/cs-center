@@ -873,6 +873,39 @@ async function processLineEvent(clientId, client, event) {
     content_type: normalized.content_type,
   });
 
+  // ── 下班路由：超出客服時間自動回（每 24h 對同一對話只發一次）──
+  if (normalized.content_type === 'text' && client.off_hours_enabled) {
+    try {
+      const now = new Date();
+      // 用台北時區 hh:mm
+      const hhmm = now.toLocaleTimeString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false }).slice(0, 5);
+      const start = client.off_hours_start || '18:00'; // 開始下班
+      const end = client.off_hours_end || '09:00';     // 結束下班 (隔天上班)
+      // 跨午夜判定
+      const isOff = (start > end) ? (hhmm >= start || hhmm < end) : (hhmm >= start && hhmm < end);
+      if (isOff) {
+        const lastSent = conv.off_hours_sent_at || 0;
+        const cooldown = 12 * 60 * 60 * 1000; // 12h 冷卻避免每則訊息都發
+        if (Date.now() - lastSent > cooldown) {
+          const cc = db.prepare("SELECT channel_user_id FROM customer_channels WHERE customer_id = ? AND channel = 'line' LIMIT 1").get(customerId);
+          if (cc && client.line_access_token_enc) {
+            const accessToken = decrypt(client.line_access_token_enc);
+            const msg = client.off_hours_message || '我們現在不在線，明早會回覆您～';
+            await lineSendText(accessToken, cc.channel_user_id, msg, clientId);
+            db.prepare('UPDATE conversations SET off_hours_sent_at = ? WHERE id = ?').run(Date.now(), conv.id);
+            insertAuditLog({
+              client_id: clientId, user_id: null,
+              action: 'conv.off_hours_reply',
+              target_type: 'conversation', target_id: conv.id,
+              detail: JSON.stringify({ hhmm, start, end }),
+            });
+            log.info({ conv_id: conv.id, hhmm }, '下班路由訊息已發');
+          }
+        }
+      }
+    } catch (e) { log.warn({ err: e.message }, '下班路由失敗'); }
+  }
+
   // ── 客訴升級偵測（同步、輕量 keyword scan）──
   if (normalized.content_type === 'text' && normalized.content) {
     const ESCALATION_KEYWORDS = [
@@ -1597,6 +1630,11 @@ app.get('/api/clients', requireAdmin, (_req, res) => {
       bv_type: full?.bv_type || 'store',
       has_bv_api_key: !!(full?.bv_password_enc || full?.bv_api_key_enc),
       bv_last_sync_at: full?.bv_last_sync_at || null,
+      // 下班路由
+      off_hours_enabled: full?.off_hours_enabled || 0,
+      off_hours_start: full?.off_hours_start || '18:00',
+      off_hours_end: full?.off_hours_end || '09:00',
+      off_hours_message: full?.off_hours_message || '',
       bv_order_count: bvOrderCount,
       // 結帳連結設定
       cart_url_template: full?.cart_url_template || null,
@@ -1622,7 +1660,9 @@ app.put('/api/clients/:id', requireAdmin, (req, res) => {
     // IG DM 欄位
     ig_business_account_id, ig_access_token, ig_verify_token,
     // P8 BV SHOP 欄位
-    bv_shop_url, bv_api_key, bv_email, bv_password, bv_type } = req.body || {};
+    bv_shop_url, bv_api_key, bv_email, bv_password, bv_type,
+    // 下班路由
+    off_hours_enabled, off_hours_start, off_hours_end, off_hours_message } = req.body || {};
 
   const fields = {};
   if (name !== undefined) fields.name = name;
@@ -1644,6 +1684,10 @@ app.put('/api/clients/:id', requireAdmin, (req, res) => {
   if (bv_email !== undefined) fields.bv_email = bv_email;
   if (bv_password !== undefined) fields.bv_password_enc = encrypt(bv_password);
   if (bv_type !== undefined) fields.bv_type = bv_type || 'store';
+  if (off_hours_enabled !== undefined) fields.off_hours_enabled = off_hours_enabled ? 1 : 0;
+  if (off_hours_start !== undefined) fields.off_hours_start = off_hours_start;
+  if (off_hours_end !== undefined) fields.off_hours_end = off_hours_end;
+  if (off_hours_message !== undefined) fields.off_hours_message = off_hours_message;
 
   updateClientFull(id, fields);
   insertAuditLog({ user_id: req.session.user_id, action: 'update_client', entity_type: 'client', entity_id: id, ip: req.ip });
@@ -3132,6 +3176,36 @@ app.get('/api/customers/:id/timeline', (req, res) => {
     const orders = db.prepare('SELECT * FROM orders WHERE client_id = ? AND customer_id = ? ORDER BY ordered_at DESC LIMIT 20').all(clientId, customerId);
     for (const o of orders) {
       events.push({ type: 'order', icon: '🛒', title: `訂單 ${o.external_order_id || o.id}`, preview: `狀態：${o.status}，金額：${o.total_amount || '?'}`, ts: o.ordered_at || o.created_at, id: o.id });
+    }
+  } catch {}
+
+  // CSAT 回應
+  try {
+    const csats = db.prepare('SELECT * FROM csat_responses WHERE customer_id = ? AND replied_at IS NOT NULL ORDER BY replied_at DESC LIMIT 10').all(customerId);
+    for (const c of csats) {
+      events.push({ type: 'csat', icon: '⭐', title: `滿意度評分 ${c.score} 顆星`, preview: c.comment || '', ts: c.replied_at, id: c.id });
+    }
+  } catch {}
+
+  // 簽到紀錄
+  try {
+    const checkins = db.prepare('SELECT * FROM check_ins WHERE customer_id = ? AND client_id = ?').all(customerId, clientId);
+    for (const ci of checkins) {
+      const last = ci.last_check_in_at;
+      if (last) events.push({ type: 'checkin', icon: '✅', title: `連續簽到 ${ci.streak_days || 0} 天`, preview: `最後簽到`, ts: last, id: ci.id });
+    }
+  } catch {}
+
+  // 遊戲參與（中獎）
+  try {
+    const wins = db.prepare(`
+      SELECT pa.*, a.name AS activity_name FROM participations pa
+      JOIN activities a ON a.id = pa.activity_id
+      WHERE pa.customer_id = ? AND pa.is_winner = 1
+      ORDER BY pa.created_at DESC LIMIT 10
+    `).all(customerId);
+    for (const w of wins) {
+      events.push({ type: 'game_win', icon: '🎁', title: `中獎：${w.activity_name}`, preview: w.prize_label || w.prize_id || '獎品', ts: w.created_at, id: w.id });
     }
   } catch {}
 

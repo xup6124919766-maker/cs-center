@@ -376,6 +376,37 @@ const renderClientCard = (client) => {
         <span id="budget-status-${client.id}" style="font-size:12px;color:var(--muted);"></span>
       </div>
 
+      <!-- 下班路由 (off-hours auto-reply) -->
+      <div class="section-label" style="margin-top:20px;">🌙 下班路由</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="${client.id}-off-hours-enabled" ${client.off_hours_enabled ? 'checked' : ''} style="transform:scale(1.2);" />
+            <span>啟用下班自動回覆</span>
+          </label>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">超出時段時，顧客傳訊息進來會自動回覆預設訊息（每對話 12h 冷卻）</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>下班開始</label>
+          <input type="time" id="${client.id}-off-hours-start" value="${esc(client.off_hours_start || '18:00')}" />
+        </div>
+        <div class="form-group">
+          <label>上班開始</label>
+          <input type="time" id="${client.id}-off-hours-end" value="${esc(client.off_hours_end || '09:00')}" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>下班自動回覆訊息</label>
+          <textarea id="${client.id}-off-hours-message" rows="2" style="width:100%;font-family:var(--font-sans);">${esc(client.off_hours_message || '謝謝您的訊息 🌙 我們的客服時間是 09:00-18:00，明早會盡快回覆您～')}</textarea>
+        </div>
+      </div>
+      <div class="card-actions" style="margin-top:0;margin-bottom:8px;">
+        <button class="btn btn-secondary" style="font-size:12px;" onclick="saveOffHours(${client.id})">儲存下班設定</button>
+      </div>
+
       <!-- 結帳連結設定 -->
       <div class="section-label" style="margin-top:20px;">結帳連結設定</div>
       <div class="form-row">
@@ -607,6 +638,24 @@ window.saveBvShop = async (clientId) => {
   } catch (e) {
     if (statusEl) statusEl.textContent = `錯誤：${e.message}`;
     toast(`BV SHOP 設定儲存失敗：${e.message}`, 'error');
+  }
+};
+
+// ─── 下班路由設定儲存 ───
+window.saveOffHours = async (clientId) => {
+  const get = (id) => document.getElementById(id);
+  const body = {
+    off_hours_enabled: get(`${clientId}-off-hours-enabled`).checked ? 1 : 0,
+    off_hours_start: get(`${clientId}-off-hours-start`).value || '18:00',
+    off_hours_end: get(`${clientId}-off-hours-end`).value || '09:00',
+    off_hours_message: get(`${clientId}-off-hours-message`).value || '',
+  };
+  try {
+    await api('PUT', `/api/clients/${clientId}`, body);
+    toast('下班路由設定已儲存', 'success');
+    setTimeout(() => loadClients(), 600);
+  } catch (e) {
+    toast('儲存失敗：' + e.message, 'error');
   }
 };
 
