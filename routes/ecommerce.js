@@ -322,6 +322,7 @@ router.post('/customers/:id/bv-send-point', async (req, res) => {
   if (!requireAgent(req, res)) return;
   const customerId = parseInt(req.params.id, 10);
   const point = parseInt(req.body?.point, 10);
+  const title = String(req.body?.title || '').trim() || '客服中心發放';
   const reason = String(req.body?.reason || '').trim();
   if (!point) return res.status(400).json({ error: '請提供 point' });
 
@@ -330,13 +331,13 @@ router.post('/customers/:id/bv-send-point', async (req, res) => {
   if (!ctx.cust.bv_customer_id) return res.status(400).json({ error: '此顧客尚未連結 BV（先收到一筆 BV 訂單會自動連結）' });
 
   try {
-    const r = await sendCustomerPoint(ctx.client, ctx.cust.bv_customer_id, point, reason);
+    const r = await sendCustomerPoint(ctx.client, ctx.cust.bv_customer_id, point, title, reason);
     if (r.ok) {
       insertAuditLog({
         client_id: ctx.client.id, user_id: req.session?.user_id,
         action: 'bvshop.send_point',
         target_type: 'customer', target_id: customerId,
-        detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, point, reason }),
+        detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, point, title, reason }),
       });
     }
     res.json(r);

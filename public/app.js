@@ -1643,14 +1643,17 @@ const bvUnlink = async () => {
 const bvOpenSendPoint = () => {
   $('#bv-send-point-form').style.display = '';
   $('#bv-edit-customer-form').style.display = 'none';
+  $('#bv-point-title').value = '';
   $('#bv-point-amount').value = '';
   $('#bv-point-reason').value = '';
   $('#bv-send-point-status').textContent = '';
 };
 const bvSendPointConfirm = async () => {
+  const title = $('#bv-point-title').value.trim();
   const point = parseInt($('#bv-point-amount').value, 10);
   const reason = $('#bv-point-reason').value.trim();
   const statusEl = $('#bv-send-point-status');
+  if (!title) { statusEl.textContent = '請輸入標題'; return; }
   if (!point) { statusEl.textContent = '請輸入金額'; return; }
   if (!state.activeConvId) return;
   const conv = state.conversations?.find(c => c.id === state.activeConvId);
@@ -1658,10 +1661,10 @@ const bvSendPointConfirm = async () => {
   if (!customerId) { statusEl.textContent = '此對話無顧客'; return; }
   statusEl.textContent = '發送中…';
   try {
-    const r = await api('POST', `/api/customers/${customerId}/bv-send-point`, { point, reason });
+    const r = await api('POST', `/api/customers/${customerId}/bv-send-point`, { title, point, reason });
     if (r.ok) {
       statusEl.textContent = '✅ 已發送';
-      toast(`購物金已發送：${point} 點`, 'success');
+      toast(`購物金已發送：${point} 點 (${title})`, 'success');
       setTimeout(() => $('#bv-send-point-form').style.display = 'none', 1500);
     } else {
       statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);

@@ -346,8 +346,9 @@
             <!-- 發購物金 inline form -->
             <div id="bv-send-point-form" style="display:none;background:var(--bg-soft);padding:10px;border-radius:var(--radius-sm);margin-bottom:8px;">
               <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">發送購物金 / 點數給此會員</div>
+              <input id="bv-point-title" type="text" placeholder="標題（會員看到的，必填）例：客訴補償" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
               <input id="bv-point-amount" type="number" placeholder="金額（負數=扣除）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
-              <input id="bv-point-reason" type="text" placeholder="原因（顯示於會員後台）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
+              <input id="bv-point-reason" type="text" placeholder="內部備註（選填）" style="width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;margin-bottom:6px;outline:none;" />
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-primary" id="bv-send-point-confirm" style="flex:1;font-size:12px;padding:6px;">確認發送</button>
                 <button class="btn btn-secondary" id="bv-send-point-cancel" style="font-size:12px;padding:6px;">取消</button>
