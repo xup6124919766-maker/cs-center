@@ -346,6 +346,7 @@ app.use((req, res, next) => {
 // ─── 公開路由（不需登入）───
 app.use('/login.html', express.static(path.join(__dirname, 'public', 'login.html')));
 app.use('/styles.css', express.static(path.join(__dirname, 'public', 'styles.css')));
+app.use('/_shared', express.static(path.join(__dirname, 'public', '_shared'))); // 共用前端腳本（nav-overlay 等）
 
 // ─── PWA 必要檔（manifest / SW / icons 必須在 requireAuth 之前）───
 // ─── 對所有 HTML 回應發 Clear-Site-Data，強制瀏覽器清掉舊 cache + SW ───
