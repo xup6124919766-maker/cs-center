@@ -1773,11 +1773,19 @@ const bvEditCustomerConfirm = async () => {
       statusEl.textContent = '✅ 已同步';
       toast('BV 顧客資料已更新', 'success');
       setTimeout(() => $('#bv-edit-customer-form').style.display = 'none', 1500);
-      // 重新載入顧客
       if (typeof loadConversations === 'function') loadConversations();
-    } else {
-      statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+      return;
     }
+    if (r.need_relink) {
+      statusEl.textContent = '⚠️ ' + r.error;
+      toast(r.error, 'error');
+      setTimeout(() => {
+        $('#bv-edit-customer-form').style.display = 'none';
+        loadBvActions(customerId, state.currentClientId);
+      }, 1800);
+      return;
+    }
+    statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
   } catch (e) {
     statusEl.textContent = '❌ ' + e.message;
   }

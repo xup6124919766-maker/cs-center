@@ -454,6 +454,15 @@ router.put('/customers/:id/bv-update', async (req, res) => {
         target_type: 'customer', target_id: customerId,
         detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, fields: cleaned }),
       });
+      return res.json(r);
+    }
+    // 自動清 stale link
+    const errStr = String(r.error || '');
+    if (errStr.includes('會員不存在') || errStr.includes('Not Found') || r.status === 404) {
+      const staleId = ctx.cust.bv_customer_id;
+      db.prepare('UPDATE customers SET bv_customer_id = NULL, updated_at = ? WHERE id = ?').run(Date.now(), customerId);
+      return res.json({ ok: false, need_relink: true, stale_bv_id: staleId,
+        error: `BV 會員 #${staleId} 已不存在，已自動解除連結，請重新搜尋連結後再試。` });
     }
     res.json(r);
   } catch (e) { res.status(500).json({ error: e.message }); }

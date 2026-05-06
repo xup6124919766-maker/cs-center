@@ -229,10 +229,19 @@ window.confirmSendPoint = async () => {
     const r = await api('POST', `/api/customers/${_pointTargetCustomerId}/bv-send-point`, { title, point, reason });
     if (r.ok) {
       $('#point-status').textContent = `✅ 已發送 ${point} 點`;
-      setTimeout(closePointModal, 1500);
-    } else {
-      $('#point-status').textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+      setTimeout(() => { closePointModal(); loadAll(); }, 1500);
+      return;
     }
+    if (r.need_relink) {
+      $('#point-status').innerHTML = `⚠️ ${esc(r.error)}<br><a href="/?conv-with=${_pointTargetCustomerId}" target="_blank" style="color:#5856d6;">→ 開對話重新連結 BV</a>`;
+      setTimeout(loadAll, 2500); // 重整雷達（auto-unlinked 顧客會從清單消失）
+      return;
+    }
+    if (r.need_link) {
+      $('#point-status').innerHTML = `⚠️ ${esc(r.error)}<br><a href="/?conv-with=${_pointTargetCustomerId}" target="_blank" style="color:#5856d6;">→ 開對話設定連結</a>`;
+      return;
+    }
+    $('#point-status').textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
   } catch (e) {
     $('#point-status').textContent = '❌ ' + e.message;
   }
