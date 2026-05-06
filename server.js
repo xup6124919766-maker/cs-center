@@ -850,6 +850,41 @@ async function processLineEvent(clientId, client, event) {
     content_type: normalized.content_type,
   });
 
+  // ── 客訴升級偵測（同步、輕量 keyword scan）──
+  if (normalized.content_type === 'text' && normalized.content) {
+    const ESCALATION_KEYWORDS = [
+      '退費', '退款', '客訴', '投訴', '檢舉', '律師', '法律', '消保官',
+      '消基會', '太爛', '太差', '騙人', '詐騙', '黑心', '不退我',
+      '報警', '告你', '告你們', 'NCC', '公平會', '檢察官',
+    ];
+    const matched = ESCALATION_KEYWORDS.filter(k => normalized.content.includes(k));
+    if (matched.length) {
+      try {
+        // 標 priority urgent + 加 tag
+        db.prepare(`UPDATE conversations SET priority = 'urgent', updated_at = ? WHERE id = ? AND (priority IS NULL OR priority != 'urgent')`)
+          .run(Date.now(), conv.id);
+        // 推 alert 給客服
+        emitToClient(clientId, 'escalation:alert', {
+          conversation_id: conv.id,
+          customer_id: customerId,
+          customer_name: customer?.name || '顧客',
+          keywords: matched,
+          message_preview: normalized.content.slice(0, 120),
+        });
+        // audit
+        insertAuditLog({
+          client_id: clientId, user_id: null,
+          action: 'conv.auto_escalate',
+          target_type: 'conversation', target_id: conv.id,
+          detail: JSON.stringify({ keywords: matched, msg_id: msgId }),
+        });
+        log.warn({ conv_id: conv.id, keywords: matched }, '客訴升級觸發');
+      } catch (e) {
+        log.error({ err: e.message }, '客訴升級失敗');
+      }
+    }
+  }
+
   // ── 影子模式：新 inbound 自動產 AI 草擬（async，不阻塞 webhook）──
   if (normalized.content_type === 'text' && normalized.content) {
     Promise.resolve().then(async () => {

@@ -626,6 +626,25 @@ const initSocket = () => {
     sendDesktopNotification('緊急警示', `對話 #${conversation_id} — ${message_preview || ''}`, '#alert');
   });
 
+  // 客訴自動升級偵測
+  state.socket.on('escalation:alert', ({ conversation_id, customer_name, keywords, message_preview }) => {
+    const kwStr = (keywords || []).join('、');
+    showToast(`🚨 客訴升級：${customer_name}「${kwStr}」`, 'error');
+    sendDesktopNotification('🚨 客訴升級警示', `${customer_name} 提到「${kwStr}」\n${message_preview || ''}`, `#conv-${conversation_id}`);
+    // 試播提示音（瀏覽器靜音時靜默失敗）
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880; gain.gain.value = 0.05;
+      osc.start(); osc.stop(ctx.currentTime + 0.15);
+      setTimeout(() => { const o2 = ctx.createOscillator(); o2.connect(gain); o2.frequency.value = 660; o2.start(); o2.stop(ctx.currentTime + 0.15); }, 200);
+    } catch {}
+    // 重整對話清單讓 priority urgent 顯示
+    if (typeof loadConversations === 'function') loadConversations();
+  });
+
   // P3：@提及
   state.socket.on('mention', ({ conversation_id, content_preview }) => {
     showToast(`有人在對話 #${conversation_id} 提及您`, 'success');
@@ -1120,14 +1139,19 @@ const renderConvList = () => {
       }
     } catch {}
 
-    // SLA 燈號
+    // SLA 燈號 — 已優先用 server 算的 sla_status；fallback 用 last_message_at + unread 即時推算
     let slaHtml = '';
     if (conv.sla_status === 'warning' || conv.sla_status === 'breached') {
       const mins = conv.sla_wait_minutes || 0;
-      if (conv.sla_status === 'breached') {
-        slaHtml = `<div class="sla-breached">超時 ${mins} 分鐘</div>`;
-      } else {
-        slaHtml = `<div class="sla-warning">待回覆 ${mins} 分鐘</div>`;
+      slaHtml = conv.sla_status === 'breached'
+        ? `<div class="sla-breached">超時 ${mins} 分鐘</div>`
+        : `<div class="sla-warning">待回覆 ${mins} 分鐘</div>`;
+    } else if (isUnread && conv.last_message_at) {
+      const waitMin = Math.floor((Date.now() - conv.last_message_at) / 60000);
+      if (waitMin >= 10) {
+        slaHtml = `<div class="sla-dot sla-red" title="等待 ${waitMin} 分鐘">🔴 等 ${waitMin} 分</div>`;
+      } else if (waitMin >= 3) {
+        slaHtml = `<div class="sla-dot sla-yellow" title="等待 ${waitMin} 分鐘">🟡 等 ${waitMin} 分</div>`;
       }
     }
 

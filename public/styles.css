@@ -1937,3 +1937,9 @@ body {
     overflow-y: auto;
   }
 }
+
+/* SLA 燈號（即時推算） */
+.sla-dot { font-size: 11px; font-weight: 600; margin-top: 2px; }
+.sla-yellow { color: #d97706; }
+.sla-red { color: #dc2626; animation: slaPulse 1.2s ease-in-out infinite; }
+@keyframes slaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
