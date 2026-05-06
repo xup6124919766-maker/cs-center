@@ -1717,9 +1717,24 @@ const bvSendPointConfirm = async () => {
       statusEl.textContent = '✅ 已發送';
       toast(`購物金已發送：${point} 點 (${title})`, 'success');
       setTimeout(() => $('#bv-send-point-form').style.display = 'none', 1500);
-    } else {
-      statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+      return;
     }
+    if (r.need_relink) {
+      statusEl.innerHTML = '⚠️ ' + esc(r.error || '需重新連結');
+      toast(r.error || '需重新連結 BV 會員', 'error');
+      // 自動關掉 form，重整 BV actions 以顯示連結 prompt
+      setTimeout(() => {
+        $('#bv-send-point-form').style.display = 'none';
+        loadBvActions(customerId, state.currentClientId);
+      }, 1800);
+      return;
+    }
+    if (r.need_link) {
+      statusEl.textContent = '⚠️ ' + (r.error || '請先連結 BV 會員');
+      toast(r.error, 'warning');
+      return;
+    }
+    statusEl.textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
   } catch (e) {
     statusEl.textContent = '❌ ' + e.message;
   }

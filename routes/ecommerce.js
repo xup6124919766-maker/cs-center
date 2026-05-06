@@ -378,7 +378,13 @@ router.post('/customers/:id/bv-send-point', async (req, res) => {
 
   const ctx = getClientForCustomer(customerId);
   if (ctx.error) return res.status(400).json({ error: ctx.error });
-  if (!ctx.cust.bv_customer_id) return res.status(400).json({ error: '此顧客尚未連結 BV（先收到一筆 BV 訂單會自動連結）' });
+  if (!ctx.cust.bv_customer_id) {
+    return res.status(400).json({
+      ok: false,
+      need_link: true,
+      error: '此顧客尚未連結 BV 會員 — 請先在右側「BV 動作」區用 email/電話/LINE userid 搜尋連結',
+    });
+  }
 
   try {
     const r = await sendCustomerPoint(ctx.client, ctx.cust.bv_customer_id, point, title, reason);
@@ -388,6 +394,26 @@ router.post('/customers/:id/bv-send-point', async (req, res) => {
         action: 'bvshop.send_point',
         target_type: 'customer', target_id: customerId,
         detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, point, title, reason }),
+      });
+      return res.json(r);
+    }
+    // BV 回「會員不存在」→ 自動清掉 stale link 並提示
+    const bvError = String(r.error || '');
+    if (bvError.includes('會員不存在') || bvError.includes('customerId')) {
+      const staleId = ctx.cust.bv_customer_id;
+      db.prepare('UPDATE customers SET bv_customer_id = NULL, updated_at = ? WHERE id = ?')
+        .run(Date.now(), customerId);
+      insertAuditLog({
+        client_id: ctx.client.id, user_id: req.session?.user_id,
+        action: 'bvshop.auto_unlink_stale',
+        target_type: 'customer', target_id: customerId,
+        detail: JSON.stringify({ stale_bv_id: staleId, reason: bvError.slice(0, 200) }),
+      });
+      return res.json({
+        ok: false,
+        need_relink: true,
+        stale_bv_id: staleId,
+        error: `BV 會員 #${staleId} 已不存在（可能被刪除或合併），已自動解除連結。請重新搜尋連結正確的會員後再操作。`,
       });
     }
     res.json(r);
