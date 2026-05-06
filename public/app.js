@@ -1621,6 +1621,21 @@ const loadCustomerOrders = async (customerId, clientId) => {
   } catch { section.style.display = 'none'; }
 };
 
+// ─── 快取 helper（瀏覽器端 in-memory）───
+const _appCache = new Map();
+const cachedFetch = async (key, ttl, fetcher) => {
+  const hit = _appCache.get(key);
+  if (hit && Date.now() - hit.ts < ttl) return hit.val;
+  const val = await fetcher();
+  _appCache.set(key, { val, ts: Date.now() });
+  return val;
+};
+const invalidateCache = (prefix) => {
+  for (const k of _appCache.keys()) if (k.startsWith(prefix)) _appCache.delete(k);
+};
+const getClientsCached = (ttl = 60000) =>
+  cachedFetch('clients_list', ttl, () => api('GET', '/api/clients'));
+
 // ─── BV 動作面板：根據業主有無設 BV / 顧客有無連結，渲染對應 UI ───
 const loadBvActions = async (customerId, clientId) => {
   const section = $('#bv-actions-section');
@@ -1633,7 +1648,7 @@ const loadBvActions = async (customerId, clientId) => {
   }
   // 先檢查業主有沒設 BV（從 client info 看 has_bv_api_key）
   try {
-    const cdata = await api('GET', `/api/clients`);
+    const cdata = await getClientsCached();
     const cinfo = cdata?.clients?.find(c => c.id === clientId);
     if (!cinfo?.has_bv_api_key) {
       section.style.display = 'none';
@@ -1666,7 +1681,9 @@ const loadBvDetailCard = async (customerId) => {
   const card = document.getElementById('bv-detail-card');
   if (!card) return;
   try {
-    const r = await api('GET', `/api/customers/${customerId}/bv-detail`);
+    // 30s cache：同顧客切回不重打 BV API
+    const r = await cachedFetch(`bv_detail_${customerId}`, 30000,
+      () => api('GET', `/api/customers/${customerId}/bv-detail`));
     if (r.ok && r.customer) {
       const c = r.customer;
       const $set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -1802,7 +1819,11 @@ const bvSendPointConfirm = async () => {
     if (r.ok) {
       statusEl.textContent = '✅ 已發送';
       toast(`購物金已發送：${point} 點 (${title})`, 'success');
-      setTimeout(() => $('#bv-send-point-form').style.display = 'none', 1500);
+      invalidateCache(`bv_detail_${customerId}`);
+      setTimeout(() => {
+        $('#bv-send-point-form').style.display = 'none';
+        loadBvDetailCard(customerId);
+      }, 1500);
       return;
     }
     if (r.need_relink) {
@@ -3042,7 +3063,7 @@ const loadVoiceSelect = async (conv) => {
   // 載 client.brand_dna.voices（cache）
   if (!_voicesLoaded || _voicesLoaded.clientId !== state.currentClientId) {
     try {
-      const data = await api('GET', `/api/clients`).catch(() => null);
+      const data = await getClientsCached().catch(() => null);
       const c = data?.clients?.find(x => x.id === state.currentClientId);
       let dna = {};
       try { dna = JSON.parse(c?.brand_dna || '{}'); } catch {}
