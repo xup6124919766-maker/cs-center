@@ -489,15 +489,15 @@ router.get('/revenue-attribution', (req, res) => {
   const since = Date.now() - days * 86400000;
   // 該期間每個客服回過的對話 → 對話 customer 在期間 + 7 天內訂單金額
   const rows = db.prepare(`
-    SELECT u.id AS user_id, u.username, u.display_name,
+    SELECT u.id AS user_id, u.username,
            COUNT(DISTINCT c.id) AS conv_count,
            COALESCE(SUM(o.total_amount), 0) AS revenue,
            COUNT(DISTINCT o.id) AS order_count
     FROM users u
-    LEFT JOIN messages m ON m.sender_id = CAST(u.id AS TEXT) AND m.direction = 'outbound' AND m.created_at >= ?
+    LEFT JOIN messages m ON m.sender_id = u.id AND m.direction = 'outbound' AND m.created_at >= ?
     LEFT JOIN conversations c ON c.id = m.conversation_id AND c.client_id = ?
     LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.client_id = ?
-      AND o.ordered_at BETWEEN m.created_at AND m.created_at + ?
+      AND o.ordered_at >= m.created_at AND o.ordered_at <= m.created_at + ?
       AND o.status IN ('paid','shipped','delivered')
     WHERE u.client_id = ? OR u.client_id IS NULL
     GROUP BY u.id
