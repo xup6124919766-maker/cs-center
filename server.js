@@ -33,7 +33,7 @@ import {
   hashPassword,
 } from './lib/auth.js';
 import { normalizeLine, normalizeFb, normalizeIg } from './lib/normalize.js';
-import { verifySignature as lineVerify, sendText as lineSendText, replyText as lineReplyText, getUserProfile as lineGetUserProfile, getMessageContent as lineGetMessageContent } from './lib/line.js';
+import { verifySignature as lineVerify, sendText as lineSendText, replyText as lineReplyText, getUserProfile as lineGetUserProfile, getMessageContent as lineGetMessageContent, sendCSATSurvey as lineSendCSATSurvey, sendImage as lineSendImage } from './lib/line.js';
 import { verifySignature as fbVerify, handleVerifyChallenge, sendText as fbSend } from './lib/fb.js';
 import {
   verifySignature as igVerify,
@@ -741,6 +741,29 @@ async function processLineEvent(clientId, client, event) {
             log.info({ customer_id: chRow.customer_id }, 'LINE unfollow：已標記不再接收廣播');
           }
         }
+      }
+    }
+    return;
+  }
+
+  // ── postback：CSAT 評分回應 ──
+  if (event.type === 'postback') {
+    const data = event.postback?.data || '';
+    const m = data.match(/csat=(\d+)&conv=(\d+)/);
+    if (m) {
+      const score = parseInt(m[1], 10);
+      const convId = parseInt(m[2], 10);
+      try {
+        db.prepare(`
+          UPDATE csat_responses SET score = ?, replied_at = ?
+          WHERE conversation_id = ? AND replied_at IS NULL
+        `).run(score, Date.now(), convId);
+        // 同步寫進 conversations.csat_score
+        db.prepare('UPDATE conversations SET csat_score = ? WHERE id = ?').run(score, convId);
+        log.info({ conv_id: convId, score }, 'CSAT 已收');
+        emitToClient(clientId, 'csat:received', { conversation_id: convId, score });
+      } catch (e) {
+        log.error({ err: e.message, conv_id: convId }, 'CSAT 寫入失敗');
       }
     }
     return;
@@ -1919,6 +1942,34 @@ app.post('/api/conversations/:id/reply', async (req, res) => {
     ip: req.ip,
   });
 
+  // ── AI 自學：把（前一則 inbound → 此 outbound）配對存進 learning_pairs ──
+  if (content_type === 'text' && finalContent) {
+    try {
+      const lastInbound = db.prepare(`
+        SELECT id, content FROM messages
+        WHERE conversation_id = ? AND direction = 'inbound' AND content IS NOT NULL AND content != ''
+        ORDER BY created_at DESC LIMIT 1
+      `).get(id);
+      if (lastInbound?.content && lastInbound.content.length >= 2 && finalContent.length >= 2) {
+        const usedAi = req.body?.from_ai_draft ? 1 : 0;
+        db.prepare(`
+          INSERT INTO learning_pairs
+            (client_id, conversation_id, customer_msg, agent_msg, customer_msg_id, agent_msg_id,
+             intent, used_ai_draft, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          clientId, id,
+          lastInbound.content.slice(0, 2000),
+          finalContent.slice(0, 2000),
+          lastInbound.id, msgId,
+          conv.intent || null,
+          usedAi,
+          Date.now()
+        );
+      }
+    } catch (e) { log.warn({ err: e.message }, '寫入 learning_pair 失敗'); }
+  }
+
   emitToClient(clientId, 'message:reply', {
     conversation_id: id,
     message: { id: msgId, direction: 'outbound', sender_type: 'agent', content: finalContent, created_at: Date.now() },
@@ -1965,7 +2016,12 @@ app.post('/api/conversations/:id/reply', async (req, res) => {
         let billingApiType;
         const within24h = inboundAge < 24 * 60 * 60 * 1000;
 
-        if (replyToken && within24h) {
+        // image 訊息直接 push（reply token 也可帶 image，但實作簡化只走 push）
+        if (content_type === 'image') {
+          await lineSendImage(accessToken, cc.channel_user_id, finalContent, finalContent, clientId);
+          billingApiType = 'push';
+          log.info({ conversation_id: id }, 'LINE image push 送出成功');
+        } else if (replyToken && within24h) {
           // 先嘗試 reply（免費），reply token 若已用過會拋錯，fallback push
           try {
             await lineReplyText(accessToken, replyToken, finalContent, clientId);
@@ -3750,6 +3806,45 @@ httpServer.listen(PORT, () => {
     });
   }, 15 * 60_000);
   log.info('P8 BV SHOP sync scheduler started (every 15 min)');
+
+  // ─── CSAT 自動發送：每 30 分掃對話關閉滿 1h 的，發 1-5⭐ 問卷 ───
+  const sendCsatJob = async () => {
+    const ONE_HOUR = 60 * 60 * 1000;
+    const cutoff = Date.now() - ONE_HOUR;
+    const convs = db.prepare(`
+      SELECT cv.id AS conv_id, cv.client_id, cv.customer_id, cc.channel_user_id, cv.channel
+      FROM conversations cv
+      LEFT JOIN customer_channels cc ON cc.customer_id = cv.customer_id AND cc.channel = cv.channel
+      WHERE cv.status = 'closed'
+        AND cv.updated_at < ?
+        AND cv.updated_at > ?
+        AND cv.channel = 'line'
+        AND NOT EXISTS (SELECT 1 FROM csat_responses csr WHERE csr.conversation_id = cv.id)
+      LIMIT 100
+    `).all(cutoff, cutoff - 24 * ONE_HOUR);
+    if (!convs.length) return { processed: 0 };
+    let sent = 0;
+    for (const c of convs) {
+      try {
+        if (!c.channel_user_id) continue;
+        const cl = db.prepare('SELECT line_access_token_enc FROM clients WHERE id = ?').get(c.client_id);
+        if (!cl?.line_access_token_enc) continue;
+        const accessToken = decrypt(cl.line_access_token_enc);
+        const r = await lineSendCSATSurvey(accessToken, c.channel_user_id, c.conv_id, c.client_id);
+        if (r?.ok) {
+          db.prepare(`INSERT INTO csat_responses (client_id, conversation_id, customer_id, sent_at) VALUES (?, ?, ?, ?)`)
+            .run(c.client_id, c.conv_id, c.customer_id, Date.now());
+          sent++;
+        }
+      } catch (e) {
+        log.warn({ err: e.message, conv_id: c.conv_id }, 'CSAT 發送失敗');
+      }
+    }
+    log.info({ candidates: convs.length, sent }, 'CSAT 排程跑完');
+    return { processed: convs.length, sent };
+  };
+  setInterval(() => wrapScheduler('csat_send', sendCsatJob), 30 * 60_000);
+  log.info('CSAT scheduler started (every 30 min)');
 
   // ─── B7. 備份排程（本地）───
   scheduleBackup();

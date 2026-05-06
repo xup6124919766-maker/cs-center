@@ -11,6 +11,7 @@
 
 import { Router } from 'express';
 import { db } from '../lib/db.js';
+import { chat } from '../lib/ai.js';
 import { logger as rootLogger } from '../lib/logger.js';
 
 const log = rootLogger.child({ module: 'routes/analytics' });
@@ -455,6 +456,55 @@ router.get('/funnel', (req, res) => {
     from,
     to,
   });
+});
+
+// ─── 熱門問題 AI 聚類（過去 N 天 inbound）GET /hot-topics?days=7 ───
+router.get('/hot-topics', async (req, res) => {
+  const clientId = resolveClientId(req);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const days = Math.min(Math.max(parseInt(req.query.days || '7', 10), 1), 30);
+  const since = Date.now() - days * 86400000;
+
+  // 拉過去 N 天的 inbound 文字訊息（去重複過短）
+  const msgs = db.prepare(`
+    SELECT DISTINCT m.content
+    FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE c.client_id = ?
+      AND m.direction = 'inbound'
+      AND m.content_type = 'text'
+      AND m.content IS NOT NULL
+      AND length(m.content) BETWEEN 5 AND 300
+      AND m.created_at >= ?
+    ORDER BY m.created_at DESC
+    LIMIT 500
+  `).all(clientId, since).map(r => r.content);
+
+  if (!msgs.length) return res.json({ ok: true, days, total_messages: 0, clusters: [] });
+
+  // 分批送 AI 聚類（每批 100 則，避免 token 爆）
+  const sample = msgs.slice(0, 200);
+  const system = `你是客服資料分析師。下面是過去 ${days} 天客戶的 inbound 訊息，請聚類成最多 8 個主題群組（FAQ 候選）。每組標題不超過 12 字、合併同義問題、按出現頻率排序。
+
+只回 JSON：
+{"clusters":[{"title":"...","frequency":N,"sample_questions":["...","..."],"suggested_answer":"客服可以這樣回..."}]}`;
+
+  const userText = sample.map((m, i) => `${i + 1}. ${m}`).join('\n');
+  try {
+    const r = await chat({
+      client_id: clientId,
+      feature: 'voc',
+      system,
+      messages: [{ role: 'user', content: userText.slice(0, 12000) }],
+      max_tokens: 1500,
+      json_schema: true,
+    });
+    if (!r.ok) return res.status(502).json({ error: r.error || 'AI 失敗' });
+    const data = r.json || {};
+    res.json({ ok: true, days, total_messages: msgs.length, sample_size: sample.length, clusters: data.clusters || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;
