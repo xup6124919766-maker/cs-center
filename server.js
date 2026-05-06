@@ -1702,8 +1702,60 @@ app.delete('/api/clients/:id', requireAdmin, (req, res) => {
 });
 
 // Token 測試（stub，等 P1.5 補；LINE/FB API 整合後啟用）
-app.post('/api/clients/:id/test', requireAdmin, (req, res) => {
-  res.json({ ok: false, note: 'token 未實作，等 P1.5 補；LINE/FB API 整合後啟用' });
+// LINE 連線健診 — 真打 LINE API 確認 token 有效 + webhook 設定 + bot info
+app.post('/api/clients/:id/test', requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const client = getClient(id);
+  if (!client) return res.status(404).json({ error: '業主不存在' });
+  if (!client.line_access_token_enc) return res.json({ ok: false, error: '沒設 LINE access token' });
+
+  const accessToken = decrypt(client.line_access_token_enc);
+  const headers = { 'Authorization': `Bearer ${accessToken}` };
+  const result = { ok: true, checks: {} };
+
+  // 1. Bot info（驗 token + 看 chat mode）
+  try {
+    const r = await fetch('https://api.line.me/v2/bot/info', { headers });
+    const data = await r.json();
+    result.checks.bot_info = r.ok ? {
+      ok: true, displayName: data.displayName, userId: data.userId, chatMode: data.chatMode, markAsReadMode: data.markAsReadMode,
+    } : { ok: false, error: data };
+  } catch (e) { result.checks.bot_info = { ok: false, error: e.message }; }
+
+  // 2. Webhook endpoint config
+  try {
+    const r = await fetch('https://api.line.me/v2/bot/channel/webhook/endpoint', { headers });
+    const data = await r.json();
+    result.checks.webhook_endpoint = r.ok ? {
+      ok: true, endpoint: data.endpoint, active: data.active,
+      expected: `${req.protocol}://${req.get('host')}/webhook/line/${id}`,
+    } : { ok: false, error: data };
+  } catch (e) { result.checks.webhook_endpoint = { ok: false, error: e.message }; }
+
+  // 3. Webhook reachability test（LINE 從他們伺服器送一個 test event 到 webhook URL）
+  try {
+    const r = await fetch('https://api.line.me/v2/bot/channel/webhook/test', {
+      method: 'POST', headers,
+    });
+    const data = await r.json();
+    result.checks.webhook_test = r.ok ? {
+      ok: true, success: data.success, statusCode: data.statusCode, reason: data.reason, detail: data.detail, timestamp: data.timestamp,
+    } : { ok: false, error: data };
+  } catch (e) { result.checks.webhook_test = { ok: false, error: e.message }; }
+
+  // 4. Quota（看訊息額度還剩多少）
+  try {
+    const [q1, q2] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', { headers }).then(r => r.json()),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers }).then(r => r.json()),
+    ]);
+    result.checks.quota = {
+      ok: true, type: q1.type, total: q1.value, used: q2.totalUsage,
+      remaining: q1.value ? q1.value - (q2.totalUsage || 0) : null,
+    };
+  } catch (e) { result.checks.quota = { ok: false, error: e.message }; }
+
+  res.json(result);
 });
 
 // ─── 使用者管理（admin only）───
