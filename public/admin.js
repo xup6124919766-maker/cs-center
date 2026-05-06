@@ -747,17 +747,37 @@ window.saveClient = async (clientId) => {
   }
 };
 
-// ─── 測試連線 ───
+// ─── 測試連線（真打 LINE API 健診）───
 window.testConnection = async (clientId) => {
   const resultEl = $(`#test-result-${clientId}`);
-  if (resultEl) resultEl.textContent = '測試中…';
+  if (resultEl) resultEl.innerHTML = '🔄 健診中…';
   try {
-    const data = await api('POST', `/api/clients/${clientId}/test`, {});
-    if (resultEl) resultEl.textContent = data.note || (data.ok ? '連線正常' : '測試失敗');
-    toast(data.note || '待 LINE/FB API 整合後啟用', '');
+    const r = await api('POST', `/api/clients/${clientId}/test`, {});
+    if (!r.ok) {
+      if (resultEl) resultEl.innerHTML = `❌ ${esc(r.error || '失敗')}`;
+      return;
+    }
+    const c = r.checks || {};
+    const lines = [];
+    if (c.bot_info?.ok) {
+      const cm = c.bot_info.chatMode;
+      const warn = cm === 'chat' ? ' <span style="color:#dc2626;font-weight:600;">⚠️ chatMode=chat → 你在 OA 後台回的訊息系統收不到，建議去 LINE Developers 改 bot 模式</span>' : '';
+      lines.push(`✅ Bot：${esc(c.bot_info.displayName)} (mode=${esc(cm)})${warn}`);
+    } else lines.push(`❌ Bot 資訊取得失敗`);
+    if (c.webhook_endpoint?.ok) {
+      const ok = c.webhook_endpoint.endpoint === c.webhook_endpoint.expected;
+      lines.push(`${ok ? '✅' : '⚠️'} Webhook URL：${esc(c.webhook_endpoint.endpoint || '(空)')}${!ok ? ` <span style="color:#dc2626;">應為 ${esc(c.webhook_endpoint.expected)}</span>` : ''} (active=${c.webhook_endpoint.active})`);
+    }
+    if (c.webhook_test?.ok) {
+      lines.push(`${c.webhook_test.success ? '✅' : '❌'} Webhook 連線測試：${c.webhook_test.statusCode || '?'}`);
+    }
+    if (c.quota?.ok) {
+      const pct = c.quota.total ? Math.round(c.quota.used / c.quota.total * 100) : 0;
+      lines.push(`📊 訊息額度：用 ${c.quota.used} / ${c.quota.total} (${pct}%) 剩 ${c.quota.remaining}`);
+    }
+    if (resultEl) resultEl.innerHTML = '<div style="font-size:11px;line-height:1.7;">' + lines.join('<br>') + '</div>';
   } catch (e) {
-    if (resultEl) resultEl.textContent = `錯誤：${e.message}`;
-    toast(`測試失敗：${e.message}`, 'error');
+    if (resultEl) resultEl.innerHTML = `❌ ${esc(e.message)}`;
   }
 };
 

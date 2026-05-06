@@ -1958,3 +1958,10 @@ body {
   animation: angryPulse 1.4s ease-in-out infinite;
 }
 @keyframes angryPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* slot-lite：右側欄 sections 可摺疊 */
+.rpanel-section h3 { cursor: pointer; user-select: none; transition: opacity 0.15s; }
+.rpanel-section h3:hover { opacity: 0.75; }
+.rpanel-section h3::after { content: '▾'; float: right; font-size: 11px; opacity: 0.55; transition: transform 0.2s; }
+.rpanel-section.collapsed h3::after { transform: rotate(-90deg); }
+.rpanel-section.collapsed > *:not(h3) { display: none !important; }

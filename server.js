@@ -1900,10 +1900,11 @@ app.put('/api/conversations/:id', (req, res) => {
   const conv = getConversation(id, clientId);
   if (!conv) return res.status(404).json({ error: '對話不存在或無權限' });
 
-  const { status, assigned_user_id } = req.body || {};
+  const { status, assigned_user_id, active_voice } = req.body || {};
   const fields = {};
   if (status !== undefined) fields.status = status;
   if (assigned_user_id !== undefined) fields.assigned_user_id = assigned_user_id;
+  if (active_voice !== undefined) fields.active_voice = active_voice || null;
 
   // 關閉時發送 CSAT（TODO: 改用 LINE/FB quick reply / template 訊息發送）
   if (status === 'closed' && conv.status !== 'closed' && !conv.csat_sent_at) {

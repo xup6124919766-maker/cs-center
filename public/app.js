@@ -790,6 +790,8 @@ const init = async () => {
     $('#send-btn').disabled = !el.value.trim() || !state.activeConvId;
     // 品牌教練 debounce 評分（僅 reply 模式）
     if (state.inputMode !== 'note') scheduleBrandCoachScore();
+    // LINE 預覽（如果開啟 + LINE 對話）
+    updateLinePreview(el.value);
   });
 
   // AI 草擬按鈕
@@ -1398,6 +1400,9 @@ const selectConversation = async (conv) => {
 
   // 業績歸因 badge（async，不阻塞）
   loadConvRevenue(conv.id).catch(() => {});
+
+  // 多品牌 DNA：載入 voices 選單 + 同步當前 active_voice
+  loadVoiceSelect(conv).catch(() => {});
 
   // 摘要
   if (conv.summary) showSummary(conv.summary);
@@ -2995,6 +3000,59 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── 多品牌 DNA 切換 ───
+let _voicesLoaded = null; // cache per client
+const loadVoiceSelect = async (conv) => {
+  const sel = document.getElementById('conv-voice-select');
+  if (!sel || !state.currentClientId) return;
+  // 載 client.brand_dna.voices（cache）
+  if (!_voicesLoaded || _voicesLoaded.clientId !== state.currentClientId) {
+    try {
+      const data = await api('GET', `/api/clients`).catch(() => null);
+      const c = data?.clients?.find(x => x.id === state.currentClientId);
+      let dna = {};
+      try { dna = JSON.parse(c?.brand_dna || '{}'); } catch {}
+      _voicesLoaded = { clientId: state.currentClientId, voices: Array.isArray(dna.voices) ? dna.voices : [] };
+    } catch { _voicesLoaded = { clientId: state.currentClientId, voices: [] }; }
+  }
+  const voices = _voicesLoaded.voices;
+  if (!voices.length) { sel.style.display = 'none'; return; }
+  sel.innerHTML = '<option value="">預設語調</option>' +
+    voices.map(v => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join('');
+  sel.value = conv.active_voice || '';
+  sel.style.display = '';
+  sel.onchange = async () => {
+    try {
+      await api('PUT', `/api/conversations/${conv.id}`, { active_voice: sel.value || null });
+      conv.active_voice = sel.value || null;
+      showToast(`已切換語調：${sel.value || '預設'}`, 'success');
+    } catch (e) { showToast('切換失敗：' + e.message, 'error'); }
+  };
+};
+
+// ─── LINE 訊息預覽（手機氣泡，即時更新）───
+let _linePreviewOn = localStorage.getItem('cs_line_preview') !== '0';
+const updateLinePreview = (text) => {
+  const bar = $('#line-preview-bar');
+  const bubble = $('#line-preview-bubble');
+  if (!bar || !bubble) return;
+  // 只在 LINE 對話 + reply 模式 + 開啟預覽 + 有內容時顯示
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const isLine = conv?.channel === 'line';
+  const isReply = state.inputMode !== 'note';
+  if (_linePreviewOn && isLine && isReply && text?.trim()) {
+    bubble.textContent = text;
+    bar.style.display = '';
+  } else {
+    bar.style.display = 'none';
+  }
+};
+window.toggleLinePreview = () => {
+  _linePreviewOn = !_linePreviewOn;
+  localStorage.setItem('cs_line_preview', _linePreviewOn ? '1' : '0');
+  updateLinePreview($('#msg-input').value);
+};
+
 // ─── 業績歸因 badge：對話 → BV 訂單金額 ───
 const loadConvRevenue = async (convId) => {
   if (!convId || !state.currentClientId) return;
@@ -3016,6 +3074,27 @@ const loadConvRevenue = async (convId) => {
       badge.style.display = 'none';
     }
   } catch { badge.style.display = 'none'; }
+};
+
+// ─── 側欄 section 摺疊（slot-lite，狀態存 localStorage）───
+const initCollapsibleSections = () => {
+  const stored = JSON.parse(localStorage.getItem('cs_collapsed_sections') || '[]');
+  document.querySelectorAll('.rpanel-section').forEach((sec, i) => {
+    const h3 = sec.querySelector('h3');
+    if (!h3) return;
+    const key = h3.textContent.trim().slice(0, 20) + ':' + i;
+    if (stored.includes(key)) sec.classList.add('collapsed');
+    h3.addEventListener('click', (e) => {
+      // 避免子按鈕（編輯顧客等）誤觸
+      if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+      sec.classList.toggle('collapsed');
+      const cur = JSON.parse(localStorage.getItem('cs_collapsed_sections') || '[]');
+      const idx = cur.indexOf(key);
+      if (sec.classList.contains('collapsed')) { if (idx < 0) cur.push(key); }
+      else { if (idx >= 0) cur.splice(idx, 1); }
+      localStorage.setItem('cs_collapsed_sections', JSON.stringify(cur));
+    });
+  });
 };
 
 // ─── BV 動作面板按鈕綁定 ───
@@ -3042,6 +3121,8 @@ const initBvActions = () => {
 init();
 initCustomerEdit();
 initBvActions();
+// 等右側欄渲染完才綁摺疊
+setTimeout(initCollapsibleSections, 800);
 
 // ═══════════════════════════════════════════
 //  品牌教練 AI 模式
