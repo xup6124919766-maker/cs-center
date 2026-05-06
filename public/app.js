@@ -1941,9 +1941,18 @@ const loadMembership = async (customerId, clientId) => {
 
     const set = (id, val) => { const el = $(`#${id}`); if (el) el.textContent = val; };
 
-    set('m-stage', stageLabel);
+    // 沈睡 / 流失警示（VIP/活躍 但 30+ 天沒下單）
+    let dayBadge = '';
+    if (data.last_order_at) {
+      const days = Math.floor((Date.now() - data.last_order_at) / 86400000);
+      const isHighValue = (data.total_amount || 0) >= 5000;
+      if (days > 90 && isHighValue) dayBadge = ' 💔流失';
+      else if (days > 30 && isHighValue) dayBadge = ' 😴沈睡';
+      else if (days > 30) dayBadge = ' ⚠️冷卻';
+    }
+    set('m-stage', stageLabel + dayBadge);
     const stageEl = $('#m-stage');
-    if (stageEl) stageEl.style.color = stageColor;
+    if (stageEl) stageEl.style.color = dayBadge ? '#f59e0b' : stageColor;
 
     set('m-joined', data.joined_label || '—');
     set('m-total-amount', data.total_amount ? `NT$ ${data.total_amount.toLocaleString()}` : '—');

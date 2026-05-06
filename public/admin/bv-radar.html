@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BV 雷達 — 客服中心</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { font-family: system-ui, sans-serif; background: #f5f5f7; margin: 0; }
+  .topnav { background: #1a1a2e; color: #fff; padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 48px; font-size: 14px; }
+  .topnav a { color: #ccc; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .topnav a:hover, .topnav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .topnav .brand { font-weight: 700; color: #fff; margin-right: 8px; }
+  .container { max-width: 1280px; margin: 20px auto; padding: 0 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #777; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .card-title { font-weight: 600; font-size: 15px; }
+  .card-count { font-size: 12px; color: #888; padding: 2px 9px; border-radius: 99px; background: #f0f0f0; }
+  .card-desc { font-size: 11px; color: #999; margin-bottom: 12px; }
+  .card.sleeping_vip { border-top: 3px solid #f59e0b; }
+  .card.at_risk { border-top: 3px solid #f97316; }
+  .card.lost { border-top: 3px solid #ef4444; }
+  .card.recent_buyer { border-top: 3px solid #22c55e; }
+  .card.high_value { border-top: 3px solid #5856d6; }
+  .row { display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f4f4f4; gap: 8px; font-size: 12px; }
+  .row:last-child { border-bottom: none; }
+  .row .name { flex: 1; min-width: 0; }
+  .row .name .n { font-weight: 500; color: #1a1a2e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .name .meta { font-size: 10px; color: #888; margin-top: 1px; }
+  .row .stat { text-align: right; min-width: 70px; }
+  .row .stat .top { font-weight: 600; color: #1a1a2e; }
+  .row .stat .bot { font-size: 10px; color: #999; }
+  .row .actions { display: flex; gap: 4px; }
+  .row .actions button { padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; font-size: 11px; }
+  .row .actions button:hover { background: #f5f5f5; }
+  .row .actions .primary { background: #5856d6; color: #fff; border-color: #5856d6; }
+  .row .actions .primary:hover { background: #4342c0; }
+  .empty { color: #aaa; font-size: 12px; padding: 20px; text-align: center; }
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: #fff; border-radius: 8px; max-width: 420px; width: 100%; padding: 18px 20px; }
+  .modal h3 { margin: 0 0 12px; font-size: 15px; }
+  .modal input { width: 100%; padding: 8px 10px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 13px; margin-bottom: 8px; outline: none; }
+  .modal .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .modal .btn-row button { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; }
+  .modal .btn-row button.primary { background: #5856d6; color: #fff; border-color: #5856d6; }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .toolbar select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .toolbar button { padding: 6px 14px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">客服中心</span>
+  <a href="/">客服</a>
+  <a href="/dashboard.html">儀表板</a>
+  <a href="/admin/bv-radar.html" class="active">BV 雷達</a>
+  <a href="/admin/clv.html">CLV</a>
+  <a href="/admin.html">設定</a>
+  <span style="flex:1"></span>
+  <span id="user-info" style="font-size:12px;color:#aaa;"></span>
+</nav>
+
+<div class="container">
+  <h1>📡 BV 雷達</h1>
+  <div class="sub" id="sub">即時掃描你的客群——沈睡 VIP / 流失客戶 / 7 天新買家 / 高價值顧客，一鍵發購物金挽回</div>
+
+  <div class="toolbar">
+    <label style="font-size:13px;">業主：</label>
+    <select id="client-select"></select>
+    <button onclick="loadAll()">🔄 重新整理</button>
+    <span id="status" style="font-size:12px;color:#999;"></span>
+  </div>
+
+  <div class="grid">
+    <div class="card sleeping_vip" id="seg-sleeping_vip"><div class="card-head"><div><span class="card-title">😴 沈睡 VIP</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card at_risk" id="seg-at_risk"><div class="card-head"><div><span class="card-title">⚠️ 流失預警</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card lost" id="seg-lost"><div class="card-head"><div><span class="card-title">💔 已流失</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card recent_buyer" id="seg-recent_buyer"><div class="card-head"><div><span class="card-title">🆕 近 7 天買家</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card high_value" id="seg-high_value" style="grid-column: 1/-1;"><div class="card-head"><div><span class="card-title">💎 高價值客戶 Top 20</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+  </div>
+</div>
+
+<!-- 發購物金 modal -->
+<div class="modal-bg" id="point-modal">
+  <div class="modal">
+    <h3>發送購物金 — <span id="point-target"></span></h3>
+    <input id="point-title" placeholder="標題（會員看到的，例：沈睡客戶喚醒禮）" />
+    <input id="point-amount" type="number" placeholder="金額" />
+    <input id="point-reason" placeholder="內部備註（選填）" />
+    <div class="btn-row">
+      <button onclick="closePointModal()">取消</button>
+      <button class="primary" onclick="confirmSendPoint()">發送</button>
+    </div>
+    <div id="point-status" style="font-size:12px;color:#999;margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+
+let CLIENT_ID = null;
+let _pointTargetCustomerId = null;
+
+const api = async (method, path, body) => {
+  const opts = { method, credentials: 'include', headers: {} };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const csrfMatch = document.cookie.match(/cs_csrf=([^;]+)/);
+  if (csrfMatch && method !== 'GET') opts.headers['X-CSRF-Token'] = csrfMatch[1];
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+};
+
+const loadClients = async () => {
+  try {
+    const me = await api('GET', '/api/me');
+    $('#user-info').textContent = `${me.username} (${me.role})`;
+    if (me.role === 'admin') {
+      const data = await api('GET', '/api/clients');
+      const sel = $('#client-select');
+      sel.innerHTML = (data.clients || []).map(c => `<option value="${c.id}">${esc(c.display_name)}</option>`).join('');
+      CLIENT_ID = data.clients?.[0]?.id;
+      sel.value = CLIENT_ID;
+      sel.onchange = () => { CLIENT_ID = parseInt(sel.value, 10); loadAll(); };
+    } else {
+      CLIENT_ID = me.client_id;
+      $('#client-select').style.display = 'none';
+    }
+    loadAll();
+  } catch (e) {
+    location.href = '/login.html';
+  }
+};
+
+const loadAll = async () => {
+  if (!CLIENT_ID) return;
+  $('#status').textContent = '載入中…';
+  try {
+    const r = await api('GET', `/api/bv/segments?client_id=${CLIENT_ID}&limit=20`);
+    const segs = r.segments || {};
+    for (const [key, seg] of Object.entries(segs)) {
+      renderSeg(key, seg);
+    }
+    $('#status').textContent = `更新於 ${new Date().toLocaleTimeString('zh-TW')}`;
+  } catch (e) {
+    $('#status').textContent = '❌ ' + e.message;
+  }
+};
+
+const renderSeg = (key, seg) => {
+  const card = document.getElementById(`seg-${key}`);
+  if (!card) return;
+  card.querySelector('.card-count').textContent = seg.customers?.length ?? 0;
+  card.querySelector('.card-desc').textContent = seg.desc || '';
+  const rowsEl = card.querySelector('.rows');
+  if (!seg.customers?.length) {
+    rowsEl.innerHTML = `<div class="empty">無符合顧客</div>`;
+    return;
+  }
+  rowsEl.innerHTML = seg.customers.map(c => {
+    const days = c.days_since_last_order;
+    const dayLabel = days === null ? '—' : days === 0 ? '今天' : `${days} 天前`;
+    const total = c.bv_total_spent ? `NT$${c.bv_total_spent.toLocaleString()}` : '—';
+    const contact = [c.email, c.phone].filter(Boolean).join(' · ') || `BV #${c.bv_customer_id}`;
+    return `
+      <div class="row">
+        <div class="name">
+          <div class="n">${esc(c.name || '(無名)')}</div>
+          <div class="meta">${esc(contact)}</div>
+        </div>
+        <div class="stat">
+          <div class="top">${total}</div>
+          <div class="bot">${c.bv_order_count} 單 · ${dayLabel}</div>
+        </div>
+        <div class="actions">
+          ${c.conv_id ? `<button onclick="openConv(${c.conv_id})" title="打開對話">💬</button>` : ''}
+          <button class="primary" onclick="openPointModal(${c.id}, '${esc(c.name || '').replace(/'/g, '\\\'')}', '${key}')">💰 發購物金</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+window.openConv = (convId) => { window.open(`/?conv=${convId}`, '_blank'); };
+
+window.openPointModal = (customerId, name, segKey) => {
+  _pointTargetCustomerId = customerId;
+  $('#point-target').textContent = name;
+  // 預設標題依客群
+  const titleMap = {
+    sleeping_vip: 'VIP 喚醒禮',
+    at_risk: '回娘家優惠',
+    lost: '我們想念你 - 重逢禮',
+    recent_buyer: '感謝近期支持',
+    high_value: 'VIP 專屬感謝',
+  };
+  const amountMap = {
+    sleeping_vip: 200,
+    at_risk: 100,
+    lost: 300,
+    recent_buyer: 50,
+    high_value: 500,
+  };
+  $('#point-title').value = titleMap[segKey] || '客服中心發放';
+  $('#point-amount').value = amountMap[segKey] || 100;
+  $('#point-reason').value = `BV 雷達 / ${segKey}`;
+  $('#point-status').textContent = '';
+  $('#point-modal').style.display = 'flex';
+};
+window.closePointModal = () => { $('#point-modal').style.display = 'none'; };
+
+window.confirmSendPoint = async () => {
+  const title = $('#point-title').value.trim();
+  const point = parseInt($('#point-amount').value, 10);
+  const reason = $('#point-reason').value.trim();
+  if (!title || !point) { $('#point-status').textContent = '標題與金額必填'; return; }
+  $('#point-status').textContent = '發送中…';
+  try {
+    const r = await api('POST', `/api/customers/${_pointTargetCustomerId}/bv-send-point`, { title, point, reason });
+    if (r.ok) {
+      $('#point-status').textContent = `✅ 已發送 ${point} 點`;
+      setTimeout(closePointModal, 1500);
+    } else {
+      $('#point-status').textContent = '❌ ' + (r.error || `HTTP ${r.status}`);
+    }
+  } catch (e) {
+    $('#point-status').textContent = '❌ ' + e.message;
+  }
+};
+
+// 點 modal 背景關
+document.getElementById('point-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'point-modal') closePointModal();
+});
+
+loadClients();
+</script>
+</body>
+</html>

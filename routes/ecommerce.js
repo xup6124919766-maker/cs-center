@@ -461,6 +461,99 @@ router.put('/orders/:id/bv-update', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── BV 雷達：4 個客群 GET /api/bv/segments?client_id=N ───
+// 從本地 orders + customers 算（CLV stage 已預跑），加 days_since_last 等
+router.get('/bv/segments', (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const clientId = resolveClientId(req) ?? parseInt(req.query.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const VIP_THRESHOLD = 5000;
+  const SLEEPING_DAYS = 30;
+  const LOST_DAYS = 90;
+  const RECENT_DAYS = 7;
+  const NOW = Date.now();
+  const DAY = 86400000;
+
+  const sql = (where, orderBy) => `
+    SELECT c.id, c.name, c.phone, c.email, c.bv_customer_id, c.lifecycle_stage,
+           c.last_active_at, c.created_at,
+           (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.client_id = c.client_id AND o.source = 'bvshop') AS bv_order_count,
+           (SELECT COALESCE(SUM(total_amount), 0) FROM orders o WHERE o.customer_id = c.id AND o.client_id = c.client_id AND o.source = 'bvshop') AS bv_total_spent,
+           (SELECT MAX(ordered_at) FROM orders o WHERE o.customer_id = c.id AND o.client_id = c.client_id AND o.source = 'bvshop') AS bv_last_order_at,
+           (SELECT id FROM conversations cv WHERE cv.customer_id = c.id AND cv.client_id = c.client_id ORDER BY last_message_at DESC LIMIT 1) AS conv_id
+    FROM customers c
+    WHERE c.client_id = ? AND ${where}
+    ORDER BY ${orderBy}
+    LIMIT ?`;
+
+  const enrich = (rows) => rows.map(r => {
+    const days = r.bv_last_order_at ? Math.floor((NOW - r.bv_last_order_at) / DAY) : null;
+    return { ...r, days_since_last_order: days };
+  });
+
+  try {
+    // 沈睡 VIP：BV 累積消費 ≥ 5000 且 30 天沒下單
+    const sleepingVip = enrich(db.prepare(sql(
+      `bv_customer_id IS NOT NULL`,
+      `bv_total_spent DESC, bv_last_order_at ASC NULLS LAST`
+    )).all(clientId, limit * 3))
+      .filter(r => r.bv_total_spent >= VIP_THRESHOLD &&
+                   r.bv_last_order_at &&
+                   (NOW - r.bv_last_order_at) / DAY > SLEEPING_DAYS)
+      .slice(0, limit);
+
+    // 流失預警：30-90 天沒下單但有歷史訂單
+    const atRisk = enrich(db.prepare(sql(
+      `bv_customer_id IS NOT NULL`,
+      `bv_last_order_at ASC NULLS LAST`
+    )).all(clientId, limit * 5))
+      .filter(r => r.bv_last_order_at &&
+                   (NOW - r.bv_last_order_at) / DAY > SLEEPING_DAYS &&
+                   (NOW - r.bv_last_order_at) / DAY <= LOST_DAYS &&
+                   r.bv_order_count >= 1 &&
+                   r.bv_total_spent < VIP_THRESHOLD)
+      .slice(0, limit);
+
+    // 已流失：> 90 天沒下單
+    const lost = enrich(db.prepare(sql(
+      `bv_customer_id IS NOT NULL`,
+      `bv_last_order_at ASC NULLS LAST`
+    )).all(clientId, limit * 5))
+      .filter(r => r.bv_last_order_at &&
+                   (NOW - r.bv_last_order_at) / DAY > LOST_DAYS &&
+                   r.bv_order_count >= 1)
+      .slice(0, limit);
+
+    // 7 天內新買家
+    const recentBuyers = enrich(db.prepare(sql(
+      `bv_customer_id IS NOT NULL`,
+      `bv_last_order_at DESC NULLS LAST`
+    )).all(clientId, limit * 2))
+      .filter(r => r.bv_last_order_at &&
+                   (NOW - r.bv_last_order_at) / DAY <= RECENT_DAYS)
+      .slice(0, limit);
+
+    // 高價值客戶（top 累積消費）
+    const highValue = enrich(db.prepare(sql(
+      `bv_customer_id IS NOT NULL`,
+      `bv_total_spent DESC`
+    )).all(clientId, limit));
+
+    res.json({
+      ok: true,
+      thresholds: { vip_threshold: VIP_THRESHOLD, sleeping_days: SLEEPING_DAYS, lost_days: LOST_DAYS, recent_days: RECENT_DAYS },
+      segments: {
+        sleeping_vip: { name: '沈睡 VIP', desc: `累積 ≥ ${VIP_THRESHOLD} 且 ${SLEEPING_DAYS} 天沒下單`, customers: sleepingVip },
+        at_risk:     { name: '流失預警',  desc: `${SLEEPING_DAYS}-${LOST_DAYS} 天沒下單`, customers: atRisk },
+        lost:        { name: '已流失',    desc: `> ${LOST_DAYS} 天沒下單`, customers: lost },
+        recent_buyer:{ name: '近 7 天買家', desc: `${RECENT_DAYS} 天內有訂單`, customers: recentBuyers },
+        high_value:  { name: '高價值',    desc: `累積消費 Top ${limit}`, customers: highValue },
+      },
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── BV 訂單詳情（從 BV 即時抓）GET /api/orders/:id/bv-detail ───
 router.get('/orders/:id/bv-detail', async (req, res) => {
   if (!requireAgent(req, res)) return;
