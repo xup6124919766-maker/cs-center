@@ -372,10 +372,20 @@
               <div id="bv-link-status-msg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
             </div>
 
-            <!-- 已連結 BV 時顯示 -->
+            <!-- 已連結 BV 時顯示：詳情 + 動作 -->
+            <div id="bv-detail-card" style="display:none;background:#f8faff;border:1px solid #e0e7ff;border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;">
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;">
+                <span style="color:var(--muted);">會員等級</span><span><strong id="bv-d-level">—</strong></span>
+                <span style="color:var(--muted);">購物金</span><span><strong id="bv-d-point" style="color:#10b981;">—</strong> 點</span>
+                <span style="color:var(--muted);">累積消費</span><span>NT$ <strong id="bv-d-totalspend">—</strong></span>
+                <span style="color:var(--muted);">訂單數</span><span><strong id="bv-d-ordercount">—</strong> 筆</span>
+              </div>
+              <div id="bv-d-recent" style="margin-top:6px;padding-top:6px;border-top:1px dashed #d0d7e0;color:var(--muted);font-size:10px;"></div>
+            </div>
             <div id="bv-actions-buttons" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
               <button class="btn btn-secondary" id="bv-send-point-btn" style="font-size:12px;">💰 發購物金</button>
               <button class="btn btn-secondary" id="bv-edit-customer-btn" style="font-size:12px;">✏️ 改 BV 資料</button>
+              <button class="btn btn-secondary" id="bv-send-game-btn" style="font-size:12px;">🎮 送遊戲</button>
               <button class="btn btn-secondary" id="bv-unlink-btn" style="font-size:11px;color:var(--muted);">解除連結</button>
             </div>
 

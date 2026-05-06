@@ -407,6 +407,105 @@ router.put('/customers/:id/bv-link', async (req, res) => {
   res.json({ ok: true, bv_customer_id: valToWrite, synced });
 });
 
+// ─── 列業主 active 遊戲 GET /api/games/active?client_id=N ───
+router.get('/games/active', (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const clientId = resolveClientId(req) ?? parseInt(req.query.client_id, 10);
+  if (!clientId) return res.status(400).json({ error: '需 client_id' });
+  try {
+    const games = db.prepare(`
+      SELECT id, name, type FROM activities
+      WHERE client_id = ? AND status = 'active'
+      ORDER BY created_at DESC LIMIT 20
+    `).all(clientId);
+    res.json({ ok: true, games });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── 送遊戲連結給顧客（LINE push）POST /api/customers/:id/send-game ───
+// body: { activity_id, message? }
+router.post('/customers/:id/send-game', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const activityId = parseInt(req.body?.activity_id, 10);
+  if (!activityId) return res.status(400).json({ error: '需 activity_id' });
+
+  const cust = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+  if (!cust) return res.status(404).json({ error: '顧客不存在' });
+  const activity = db.prepare('SELECT id, name, type, client_id FROM activities WHERE id = ? AND client_id = ?').get(activityId, cust.client_id);
+  if (!activity) return res.status(404).json({ error: '遊戲不存在' });
+  const client = getClient(cust.client_id);
+  if (!client?.line_access_token_enc) return res.status(400).json({ error: '業主未設定 LINE token' });
+
+  // 取顧客 LINE userId
+  const cc = db.prepare("SELECT channel_user_id FROM customer_channels WHERE customer_id = ? AND channel = 'line' LIMIT 1").get(customerId);
+  if (!cc?.channel_user_id) return res.status(400).json({ error: '此顧客無 LINE 識別碼' });
+
+  // 組訊息
+  const proto = req.protocol;
+  const host = req.get('host');
+  const url = `${proto}://${host}/play/${activity.type}.html?activity_id=${activityId}`;
+  const msg = (req.body?.message || `🎮 邀請你來玩「${activity.name}」\n\n點下面連結開玩：\n${url}`).slice(0, 1000);
+
+  try {
+    const accessToken = decrypt(client.line_access_token_enc);
+    const { sendText } = await import('../lib/line.js');
+    await sendText(accessToken, cc.channel_user_id, msg, cust.client_id);
+    insertAuditLog({
+      client_id: cust.client_id, user_id: req.session?.user_id,
+      action: 'game.send_to_customer',
+      target_type: 'customer', target_id: customerId,
+      detail: JSON.stringify({ activity_id: activityId, activity_name: activity.name, url }),
+    });
+    res.json({ ok: true, sent_url: url });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── 取本地顧客連結的 BV 詳情（point/totalSpend/level/orders）GET /api/customers/:id/bv-detail ───
+router.get('/customers/:id/bv-detail', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const customerId = parseInt(req.params.id, 10);
+  const ctx = getClientForCustomer(customerId);
+  if (ctx.error) return res.status(400).json({ error: ctx.error });
+  if (!ctx.cust.bv_customer_id) return res.status(400).json({ ok: false, need_link: true, error: '此顧客未連結 BV' });
+  try {
+    const r = await bvFetchCustomer(ctx.client, ctx.cust.bv_customer_id);
+    if (!r.ok) {
+      // BV 說會員不存在 → auto-unlink
+      const errStr = String(r.error || '');
+      if (errStr.includes('會員不存在') || r.status === 404) {
+        db.prepare('UPDATE customers SET bv_customer_id = NULL, updated_at = ? WHERE id = ?').run(Date.now(), customerId);
+        return res.json({ ok: false, need_relink: true, error: 'BV 會員不存在已自動解除連結' });
+      }
+      return res.json({ ok: false, error: r.error });
+    }
+    const c = r.customer || {};
+    res.json({
+      ok: true,
+      customer: {
+        id: c.id,
+        fullName: c.fullName,
+        email: c.email,
+        phone: c.phone,
+        point: c.point || 0,
+        totalSpend: c.totalSpend || 0,
+        memberLevel: c.memberLevel?.name || '一般會員',
+        memberLevelId: c.memberLevel?.id || null,
+        isBlacklist: !!c.isBlacklist,
+        lineUid: c.lineUid || null,
+        createdAt: c.createdAt,
+        orderCount: Array.isArray(c.relateOrders) ? c.relateOrders.length : 0,
+        recentOrders: (c.relateOrders || []).slice(-3).reverse().map(o => ({
+          id: o.id, uid: o.uid, createdAt: o.createdAt,
+          orderStatus: o.orderStatus, paymentStatus: o.paymentStatus, logisticStatus: o.logisticStatus,
+        })),
+      },
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── 智能搜尋 BV 顧客 GET /api/customers/:id/bv-search?q=xxx ───
 // q: 純數字當電話 + 含 @ 當 email + 否則 line userid
 router.get('/customers/:id/bv-search', async (req, res) => {

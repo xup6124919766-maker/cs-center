@@ -1649,6 +1649,8 @@ const loadBvActions = async (customerId, clientId) => {
       if (statusEl) statusEl.textContent = `BV id #${cust.bv_customer_id}`;
       linkPrompt.style.display = 'none';
       actionBtns.style.display = '';
+      // 即時拉 BV 詳情
+      loadBvDetailCard(customerId).catch(() => {});
     } else {
       if (statusEl) statusEl.textContent = '未連結';
       linkPrompt.style.display = '';
@@ -1657,6 +1659,38 @@ const loadBvActions = async (customerId, clientId) => {
   } catch {
     section.style.display = 'none';
   }
+};
+
+// ─── 載入 BV 顧客詳情卡片（point/level/totalSpend/recent orders）───
+const loadBvDetailCard = async (customerId) => {
+  const card = document.getElementById('bv-detail-card');
+  if (!card) return;
+  try {
+    const r = await api('GET', `/api/customers/${customerId}/bv-detail`);
+    if (r.ok && r.customer) {
+      const c = r.customer;
+      const $set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      $set('bv-d-level', c.memberLevel);
+      $set('bv-d-point', (c.point || 0).toLocaleString());
+      $set('bv-d-totalspend', (c.totalSpend || 0).toLocaleString());
+      $set('bv-d-ordercount', c.orderCount || 0);
+      const recentEl = document.getElementById('bv-d-recent');
+      if (recentEl) {
+        if (c.recentOrders?.length) {
+          const sMap = { 1:'已成立', 2:'待確認', 4:'已完成', '-1':'異常', '-3':'已取消' };
+          recentEl.innerHTML = '近期訂單：' + c.recentOrders.map(o =>
+            `${esc(o.uid || o.id)} (${sMap[o.orderStatus] || o.orderStatus})`
+          ).join(' · ');
+        } else recentEl.textContent = '尚無歷史訂單';
+      }
+      card.style.display = '';
+    } else if (r.need_relink) {
+      card.style.display = 'none';
+      setTimeout(() => loadBvActions(customerId, state.currentClientId), 500);
+    } else {
+      card.style.display = 'none';
+    }
+  } catch { card.style.display = 'none'; }
 };
 
 // ─── 搜尋並連結 BV 會員（支援 email / 電話 / LINE userid / BV ID）───
@@ -3107,6 +3141,7 @@ const initBvActions = () => {
   const edit = $('#bv-edit-customer-btn');
   const editConfirm = $('#bv-edit-customer-confirm');
   const editCancel = $('#bv-edit-customer-cancel');
+  const sendGame = $('#bv-send-game-btn');
   if (linkConfirm) linkConfirm.onclick = bvLinkConfirm;
   if (unlink) unlink.onclick = bvUnlink;
   if (send) send.onclick = bvOpenSendPoint;
@@ -3115,6 +3150,30 @@ const initBvActions = () => {
   if (edit) edit.onclick = bvOpenEditCustomer;
   if (editConfirm) editConfirm.onclick = bvEditCustomerConfirm;
   if (editCancel) editCancel.onclick = () => $('#bv-edit-customer-form').style.display = 'none';
+  if (sendGame) sendGame.onclick = bvOpenSendGame;
+};
+
+// ─── 送遊戲：列遊戲 → 選一個 → LINE push ───
+const bvOpenSendGame = async () => {
+  if (!state.activeConvId || !state.currentClientId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { showToast('此對話無顧客', 'warning'); return; }
+  if (conv?.channel !== 'line') { showToast('目前僅支援 LINE 顧客', 'warning'); return; }
+  try {
+    const r = await api('GET', `/api/games/active?client_id=${state.currentClientId}`);
+    const games = r.games || [];
+    if (!games.length) { showToast('沒有 active 遊戲，先去活動頁建立', 'warning'); return; }
+    // 簡單 prompt 選擇
+    const list = games.map((g, i) => `${i + 1}. ${g.name} (${g.type})`).join('\n');
+    const pick = prompt(`選擇要送的遊戲（輸入編號）：\n${list}`);
+    const idx = parseInt(pick, 10) - 1;
+    if (isNaN(idx) || !games[idx]) return;
+    const g = games[idx];
+    const res = await api('POST', `/api/customers/${customerId}/send-game`, { activity_id: g.id });
+    if (res.ok) showToast(`✅ 已推送「${g.name}」連結到 LINE`, 'success');
+    else showToast(`失敗：${res.error || ''}`, 'error');
+  } catch (e) { showToast(`錯誤：${e.message}`, 'error'); }
 };
 
 // ─── Start ───
