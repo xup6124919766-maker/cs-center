@@ -850,6 +850,28 @@ async function processLineEvent(clientId, client, event) {
     content_type: normalized.content_type,
   });
 
+  // ── 影子模式：新 inbound 自動產 AI 草擬（async，不阻塞 webhook）──
+  if (normalized.content_type === 'text' && normalized.content) {
+    Promise.resolve().then(async () => {
+      try {
+        const result = await generateDrafts({
+          conversation_id: conv.id,
+          client_id: clientId,
+          user_id: null,
+          realtime: { emitToClient },
+        });
+        if (result?.ok) {
+          emitToClient(clientId, 'draft:ready', {
+            conversation_id: conv.id,
+            count: result.drafts?.length || 0,
+          });
+        }
+      } catch (e) {
+        log.warn({ err: e.message, conv_id: conv.id }, 'auto-draft 失敗，靜默');
+      }
+    });
+  }
+
   // ── 語音訊息自動轉文字（async，不阻塞 webhook）──
   if (normalized.content_type === 'audio') {
     Promise.resolve().then(async () => {

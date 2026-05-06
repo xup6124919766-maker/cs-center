@@ -2457,6 +2457,43 @@ const renderTemplates = () => {
 };
 
 // ─── 建議回覆（AI 草擬 + 模板 + 知識庫）───
+// ─── AI 影子建議 inline bar（訊息框正上方）───
+let _aiSuggestText = '';
+const setAiSuggest = (text, variant) => {
+  _aiSuggestText = text;
+  const bar = $('#ai-suggest-bar');
+  const txt = $('#ai-suggest-text');
+  const meta = $('#ai-suggest-meta');
+  if (!bar || !txt) return;
+  txt.textContent = text;
+  if (meta) meta.textContent = variant ? `· ${variant}` : '';
+  bar.style.display = '';
+};
+const hideAiSuggest = () => {
+  _aiSuggestText = '';
+  const bar = $('#ai-suggest-bar');
+  if (bar) bar.style.display = 'none';
+};
+window.aiSuggestApply = async () => {
+  if (!_aiSuggestText) return;
+  const input = $('#msg-input');
+  if (input) { input.value = _aiSuggestText; input.dispatchEvent(new Event('input')); }
+  hideAiSuggest();
+  // 直接送出
+  if (typeof sendMessage === 'function') sendMessage();
+};
+window.aiSuggestEdit = () => {
+  if (!_aiSuggestText) return;
+  const input = $('#msg-input');
+  if (input) {
+    input.value = _aiSuggestText;
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  }
+  hideAiSuggest();
+};
+window.aiSuggestSkip = () => hideAiSuggest();
+
 const loadSuggestions = async () => {
   if (!state.activeConvId) return;
   const lastMsg = state.messages[state.messages.length - 1];
@@ -2512,6 +2549,15 @@ const loadSuggestions = async () => {
         content: d.content || '',
         type: 'ai_draft',
       });
+    }
+
+    // 把「親切版」（沒就拿第一個）同步到訊息框上方的 1-click 建議區
+    const drafts = draftsRes.drafts || [];
+    const primary = drafts.find(d => d.variant === 'friendly') || drafts[0];
+    if (primary?.content) {
+      setAiSuggest(primary.content, primary.variant || 'ai');
+    } else {
+      hideAiSuggest();
     }
 
     for (const t of (templatesRes.templates || []).slice(0, 2)) {

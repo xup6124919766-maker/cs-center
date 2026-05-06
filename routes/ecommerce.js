@@ -295,6 +295,68 @@ const getClientForOrder = (orderId) => {
   return { order, client };
 };
 
+// ─── 直接對 BV id 發購物金（不需本地連結）POST /api/bv/send-point-direct ───
+// 用於訂單詳情 modal 等場景：已知 BV customerId，繞過本地 customer 連結
+router.post('/bv/send-point-direct', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const clientId = resolveClientId(req) ?? parseInt(req.body?.client_id, 10);
+  const bvCustId = parseInt(req.body?.bv_customer_id, 10);
+  const point = parseInt(req.body?.point, 10);
+  const title = String(req.body?.title || '客服中心發放').trim();
+  const reason = String(req.body?.reason || '').trim();
+  if (!clientId) return res.status(400).json({ error: '需 client_id' });
+  if (!bvCustId || !point) return res.status(400).json({ error: '需 bv_customer_id + point' });
+  const client = getClient(clientId);
+  if (!client) return res.status(404).json({ error: '業主不存在' });
+  if (!client.bv_email && !client.bv_api_key_enc) return res.status(400).json({ error: '業主未設定 BV' });
+  try {
+    const r = await sendCustomerPoint(client, bvCustId, point, title, reason);
+    if (r.ok) {
+      insertAuditLog({
+        client_id: clientId, user_id: req.session?.user_id,
+        action: 'bvshop.send_point_direct',
+        target_type: 'bv_customer', target_id: bvCustId,
+        detail: JSON.stringify({ point, title, reason }),
+      });
+    }
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── 批次發購物金 POST /api/customers/batch-send-point ───
+// body: { customer_ids: [1,2,3], point, title, reason? }
+router.post('/customers/batch-send-point', async (req, res) => {
+  if (!requireAgent(req, res)) return;
+  const ids = Array.isArray(req.body?.customer_ids) ? req.body.customer_ids.map(Number).filter(Boolean) : [];
+  const point = parseInt(req.body?.point, 10);
+  const title = String(req.body?.title || '').trim() || '批次發送';
+  const reason = String(req.body?.reason || '').trim();
+  if (!ids.length) return res.status(400).json({ error: '需 customer_ids' });
+  if (!point) return res.status(400).json({ error: '需 point' });
+  if (ids.length > 200) return res.status(400).json({ error: '一次最多 200 筆' });
+
+  const results = [];
+  for (const cid of ids) {
+    try {
+      const ctx = getClientForCustomer(cid);
+      if (ctx.error) { results.push({ customer_id: cid, ok: false, error: ctx.error }); continue; }
+      if (!ctx.cust.bv_customer_id) { results.push({ customer_id: cid, ok: false, error: '未連結 BV' }); continue; }
+      const r = await sendCustomerPoint(ctx.client, ctx.cust.bv_customer_id, point, title, reason);
+      results.push({ customer_id: cid, bv_customer_id: ctx.cust.bv_customer_id, ok: r.ok, error: r.ok ? null : r.error });
+      if (r.ok) {
+        insertAuditLog({
+          client_id: ctx.client.id, user_id: req.session?.user_id,
+          action: 'bvshop.batch_send_point',
+          target_type: 'customer', target_id: cid,
+          detail: JSON.stringify({ bv_customer_id: ctx.cust.bv_customer_id, point, title, reason }),
+        });
+      }
+    } catch (e) { results.push({ customer_id: cid, ok: false, error: e.message }); }
+  }
+  const okCount = results.filter(r => r.ok).length;
+  res.json({ ok: true, total: ids.length, success: okCount, fail: ids.length - okCount, results });
+});
+
 // ─── 手動連結/解除 BV 會員 PUT /api/customers/:id/bv-link ───
 // body: { bv_customer_id: 123 } 連結；{ bv_customer_id: 0 } 解除
 // 連結成功時自動從 BV 抓顧客資料補齊本地 name/phone/email

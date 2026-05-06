@@ -39,6 +39,12 @@
   .row .actions button:hover { background: #f5f5f5; }
   .row .actions .primary { background: #5856d6; color: #fff; border-color: #5856d6; }
   .row .actions .primary:hover { background: #4342c0; }
+  .row input[type=checkbox] { transform: scale(1.2); cursor: pointer; }
+  .seg-toolbar { display:flex; gap:8px; align-items:center; margin: 8px 0; padding: 8px 12px; background: #f9fafb; border-radius: 6px; font-size: 12px; }
+  .seg-toolbar button { padding: 4px 10px; border: 1px solid #5856d6; border-radius: 4px; background: #fff; color:#5856d6; cursor: pointer; font-size: 11px; }
+  .seg-toolbar button:hover { background: #5856d6; color: #fff; }
+  .seg-toolbar button:disabled { opacity: 0.4; cursor: default; }
+  .seg-toolbar .selected-count { color: #5856d6; font-weight: 600; }
   .empty { color: #aaa; font-size: 12px; padding: 20px; text-align: center; }
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
   .modal { background: #fff; border-radius: 8px; max-width: 420px; width: 100%; padding: 18px 20px; }
@@ -77,11 +83,26 @@
   </div>
 
   <div class="grid">
-    <div class="card sleeping_vip" id="seg-sleeping_vip"><div class="card-head"><div><span class="card-title">😴 沈睡 VIP</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
-    <div class="card at_risk" id="seg-at_risk"><div class="card-head"><div><span class="card-title">⚠️ 流失預警</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
-    <div class="card lost" id="seg-lost"><div class="card-head"><div><span class="card-title">💔 已流失</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
-    <div class="card recent_buyer" id="seg-recent_buyer"><div class="card-head"><div><span class="card-title">🆕 近 7 天買家</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
-    <div class="card high_value" id="seg-high_value" style="grid-column: 1/-1;"><div class="card-head"><div><span class="card-title">💎 高價值客戶 Top 20</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card sleeping_vip" id="seg-sleeping_vip"><div class="card-head"><div><span class="card-title">😴 沈睡 VIP</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="seg-toolbar"><button onclick="window.toggleSegSelectAll('sleeping_vip')">全選</button><button onclick="window.openBatchModal('sleeping_vip')">批次發購物金</button><span class="selected-count" id="cnt-sleeping_vip">0 已選</span></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card at_risk" id="seg-at_risk"><div class="card-head"><div><span class="card-title">⚠️ 流失預警</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="seg-toolbar"><button onclick="window.toggleSegSelectAll('at_risk')">全選</button><button onclick="window.openBatchModal('at_risk')">批次發購物金</button><span class="selected-count" id="cnt-at_risk">0 已選</span></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card lost" id="seg-lost"><div class="card-head"><div><span class="card-title">💔 已流失</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="seg-toolbar"><button onclick="window.toggleSegSelectAll('lost')">全選</button><button onclick="window.openBatchModal('lost')">批次發購物金</button><span class="selected-count" id="cnt-lost">0 已選</span></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card recent_buyer" id="seg-recent_buyer"><div class="card-head"><div><span class="card-title">🆕 近 7 天買家</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="seg-toolbar"><button onclick="window.toggleSegSelectAll('recent_buyer')">全選</button><button onclick="window.openBatchModal('recent_buyer')">批次發購物金</button><span class="selected-count" id="cnt-recent_buyer">0 已選</span></div><div class="rows"><div class="empty">載入中…</div></div></div>
+    <div class="card high_value" id="seg-high_value" style="grid-column: 1/-1;"><div class="card-head"><div><span class="card-title">💎 高價值客戶 Top 20</span></div><span class="card-count">—</span></div><div class="card-desc"></div><div class="seg-toolbar"><button onclick="window.toggleSegSelectAll('high_value')">全選</button><button onclick="window.openBatchModal('high_value')">批次發購物金</button><span class="selected-count" id="cnt-high_value">0 已選</span></div><div class="rows"><div class="empty">載入中…</div></div></div>
+  </div>
+</div>
+
+<!-- 批次發購物金 modal -->
+<div class="modal-bg" id="batch-modal">
+  <div class="modal">
+    <h3>批次發送購物金 — <span id="batch-target-count">0</span> 位顧客</h3>
+    <input id="batch-title" placeholder="標題（會員看到的）" />
+    <input id="batch-amount" type="number" placeholder="金額" />
+    <input id="batch-reason" placeholder="內部備註（選填）" />
+    <div class="btn-row">
+      <button onclick="closeBatchModal()">取消</button>
+      <button class="primary" onclick="confirmBatchSend()">批次發送</button>
+    </div>
+    <div id="batch-status" style="font-size:12px;color:#999;margin-top:8px;"></div>
   </div>
 </div>
 
@@ -174,6 +195,7 @@ const renderSeg = (key, seg) => {
     const contact = [c.email, c.phone].filter(Boolean).join(' · ') || `BV #${c.bv_customer_id}`;
     return `
       <div class="row">
+        <input type="checkbox" data-seg="${key}" data-cust-id="${c.id}" onchange="window.updateSegCount('${key}')" />
         <div class="name">
           <div class="n">${esc(c.name || '(無名)')}</div>
           <div class="meta">${esc(contact)}</div>
@@ -184,11 +206,56 @@ const renderSeg = (key, seg) => {
         </div>
         <div class="actions">
           ${c.conv_id ? `<button onclick="openConv(${c.conv_id})" title="打開對話">💬</button>` : ''}
-          <button class="primary" onclick="openPointModal(${c.id}, '${esc(c.name || '').replace(/'/g, '\\\'')}', '${key}')">💰 發購物金</button>
+          <button class="primary" onclick="openPointModal(${c.id}, '${esc(c.name || '').replace(/'/g, '\\\'')}', '${key}')">💰</button>
         </div>
       </div>
     `;
   }).join('');
+};
+
+// ─── 批次選取 / 發送 ───
+window.updateSegCount = (key) => {
+  const cnt = document.querySelectorAll(`#seg-${key} input[type=checkbox]:checked`).length;
+  const el = document.getElementById(`cnt-${key}`);
+  if (el) el.textContent = `${cnt} 已選`;
+};
+window.toggleSegSelectAll = (key) => {
+  const all = document.querySelectorAll(`#seg-${key} input[type=checkbox]`);
+  const allChecked = Array.from(all).every(c => c.checked);
+  all.forEach(c => c.checked = !allChecked);
+  window.updateSegCount(key);
+};
+window.openBatchModal = (key) => {
+  const checked = Array.from(document.querySelectorAll(`#seg-${key} input[type=checkbox]:checked`));
+  if (!checked.length) { alert('請先勾選顧客'); return; }
+  const ids = checked.map(c => parseInt(c.dataset.custId, 10));
+  const titleMap = { sleeping_vip: 'VIP 喚醒禮', at_risk: '回娘家優惠', lost: '我們想念你 - 重逢禮', recent_buyer: '感謝近期支持', high_value: 'VIP 專屬感謝' };
+  const amountMap = { sleeping_vip: 200, at_risk: 100, lost: 300, recent_buyer: 50, high_value: 500 };
+  $('#batch-target-count').textContent = ids.length;
+  $('#batch-title').value = titleMap[key] || '批次發送';
+  $('#batch-amount').value = amountMap[key] || 100;
+  $('#batch-reason').value = `BV 雷達 / 批次 / ${key}`;
+  $('#batch-status').textContent = '';
+  window._batchIds = ids;
+  $('#batch-modal').style.display = 'flex';
+};
+window.closeBatchModal = () => { $('#batch-modal').style.display = 'none'; };
+window.confirmBatchSend = async () => {
+  const title = $('#batch-title').value.trim();
+  const point = parseInt($('#batch-amount').value, 10);
+  const reason = $('#batch-reason').value.trim();
+  if (!title || !point) { $('#batch-status').textContent = '標題與金額必填'; return; }
+  if (!confirm(`確認對 ${window._batchIds.length} 位顧客發送 ${point} 點？`)) return;
+  $('#batch-status').textContent = '批次發送中…';
+  try {
+    const r = await api('POST', `/api/customers/batch-send-point`, {
+      customer_ids: window._batchIds, title, point, reason,
+    });
+    $('#batch-status').textContent = `✅ 完成：成功 ${r.success} / 失敗 ${r.fail}`;
+    setTimeout(() => { closeBatchModal(); loadAll(); }, 2500);
+  } catch (e) {
+    $('#batch-status').textContent = '❌ ' + e.message;
+  }
 };
 
 window.openConv = (convId) => { window.open(`/?conv=${convId}`, '_blank'); };
@@ -250,6 +317,9 @@ window.confirmSendPoint = async () => {
 // 點 modal 背景關
 document.getElementById('point-modal').addEventListener('click', (e) => {
   if (e.target.id === 'point-modal') closePointModal();
+});
+document.getElementById('batch-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'batch-modal') closeBatchModal();
 });
 
 loadClients();
