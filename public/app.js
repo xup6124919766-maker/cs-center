@@ -1091,9 +1091,25 @@ window.makeInitialAvatar = (name, size = 48) => {
 };
 
 const renderConvList = () => {
-  const filtered = state.statusFilter
+  let filtered = state.statusFilter
     ? state.conversations.filter(c => c.status === state.statusFilter)
-    : state.conversations;
+    : state.conversations.slice();
+
+  // ─── 情緒置頂排序（angry > negative > urgent priority > 一般時序）───
+  const emotionScore = (c) => {
+    const e = (c.emotion || '').toLowerCase();
+    const u = (c.urgency || '').toLowerCase();
+    const p = (c.priority || '').toLowerCase();
+    if (e === 'angry' || p === 'urgent') return 3;
+    if (e === 'negative' || u === 'high') return 2;
+    if (e === 'negative') return 1;
+    return 0;
+  };
+  filtered.sort((a, b) => {
+    const sb = emotionScore(b), sa = emotionScore(a);
+    if (sb !== sa) return sb - sa;
+    return (b.last_message_at || 0) - (a.last_message_at || 0);
+  });
 
   const list = $('#conv-list');
   const empty = $('#conv-empty');
@@ -1110,11 +1126,13 @@ const renderConvList = () => {
   filtered.forEach(conv => {
     const div = document.createElement('div');
     const isUnread = (conv.unread_count || 0) > 0;
+    const isAngry = (conv.emotion || '').toLowerCase() === 'angry' || (conv.priority || '').toLowerCase() === 'urgent';
     div.className = 'conv-item' +
       (conv.id === state.activeConvId ? ' active' : '') +
       (isUnread ? ' unread' : '') +
       (conv.pinned ? ' pinned' : '') +
-      (conv.archived ? ' archived' : '');
+      (conv.archived ? ' archived' : '') +
+      (isAngry ? ' emotion-angry' : '');
     div.dataset.id = conv.id;
     div.dataset.convId = conv.id; // swipe 手勢用
 
@@ -1377,6 +1395,9 @@ const selectConversation = async (conv) => {
   $('#chat-header-sub').textContent = `${chLabel} · ${statusLabel(conv.status)}`;
   $('#conv-status-select').value = conv.status;
   renderHeaderBadges(conv);
+
+  // 業績歸因 badge（async，不阻塞）
+  loadConvRevenue(conv.id).catch(() => {});
 
   // 摘要
   if (conv.summary) showSummary(conv.summary);
@@ -2485,6 +2506,22 @@ const renderTemplates = () => {
 // ─── 建議回覆（AI 草擬 + 模板 + 知識庫）───
 // ─── AI 影子建議 inline bar（訊息框正上方）───
 let _aiSuggestText = '';
+let _aiShadowAmount = 0;
+const SHADOW_TRIGGERS = [
+  { kw: ['延誤', '太久', '還沒到', '還沒收到', '出貨慢'], reason: '物流延誤', amount: 50 },
+  { kw: ['客訴', '投訴', '不滿意', '生氣', '失望'], reason: '客訴情緒', amount: 100 },
+  { kw: ['退費', '退款', '不要了', '退錢'], reason: '退款訴求', amount: 50 },
+  { kw: ['壞掉', '損壞', '破損', '瑕疵', '缺角', '漏'], reason: '商品瑕疵', amount: 200 },
+];
+const detectShadowAction = () => {
+  // 看最後一則 inbound 顧客訊息
+  const lastInbound = (state.messages || []).slice().reverse().find(m => m.direction === 'inbound');
+  if (!lastInbound?.content) return null;
+  for (const t of SHADOW_TRIGGERS) {
+    if (t.kw.some(k => lastInbound.content.includes(k))) return t;
+  }
+  return null;
+};
 const setAiSuggest = (text, variant) => {
   _aiSuggestText = text;
   const bar = $('#ai-suggest-bar');
@@ -2494,6 +2531,18 @@ const setAiSuggest = (text, variant) => {
   txt.textContent = text;
   if (meta) meta.textContent = variant ? `· ${variant}` : '';
   bar.style.display = '';
+
+  // Actionable Shadow：偵測客訴/延誤關鍵字 → 顯示加碼補償按鈕
+  const shadow = detectShadowAction();
+  const sBar = $('#ai-actionable-shadow');
+  if (shadow && sBar) {
+    _aiShadowAmount = shadow.amount;
+    $('#ai-shadow-reason').textContent = shadow.reason;
+    $('#ai-shadow-amount').textContent = shadow.amount;
+    sBar.style.display = '';
+  } else if (sBar) {
+    sBar.style.display = 'none';
+  }
 };
 const hideAiSuggest = () => {
   _aiSuggestText = '';
@@ -2519,6 +2568,27 @@ window.aiSuggestEdit = () => {
   hideAiSuggest();
 };
 window.aiSuggestSkip = () => hideAiSuggest();
+window.aiSuggestApplyAndCompensate = async () => {
+  if (!_aiSuggestText || !state.activeConvId) return;
+  const conv = state.conversations?.find(c => c.id === state.activeConvId);
+  const customerId = conv?.customer_id;
+  if (!customerId) { showToast('此對話無顧客 id', 'error'); return; }
+  const point = _aiShadowAmount;
+  const reason = $('#ai-shadow-reason').textContent || '客服補償';
+  // 1. 送 reply
+  const input = $('#msg-input');
+  if (input) { input.value = _aiSuggestText; input.dispatchEvent(new Event('input')); }
+  hideAiSuggest();
+  if (typeof sendMessage === 'function') await sendMessage();
+  // 2. 自動發購物金（fail 不影響主流程）
+  try {
+    const r = await api('POST', `/api/customers/${customerId}/bv-send-point`, {
+      title: `客服補償 - ${reason}`, point, reason: '由 Actionable Shadow 一鍵發送',
+    });
+    if (r.ok) showToast(`✅ 已送回覆 + 發 ${point} 點補償`, 'success');
+    else showToast(`回覆已送，但補償失敗：${r.error || ''}`, 'error');
+  } catch (e) { showToast(`回覆已送，但補償失敗：${e.message}`, 'error'); }
+};
 
 const loadSuggestions = async () => {
   if (!state.activeConvId) return;
@@ -2924,6 +2994,29 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 });
+
+// ─── 業績歸因 badge：對話 → BV 訂單金額 ───
+const loadConvRevenue = async (convId) => {
+  if (!convId || !state.currentClientId) return;
+  let badge = document.getElementById('conv-revenue-badge');
+  if (!badge) {
+    const sub = document.getElementById('chat-header-sub');
+    if (!sub) return;
+    badge = document.createElement('span');
+    badge.id = 'conv-revenue-badge';
+    badge.style.cssText = 'display:none;margin-left:8px;padding:2px 8px;background:#dcfce7;color:#166534;border-radius:99px;font-size:11px;font-weight:600;';
+    sub.appendChild(badge);
+  }
+  try {
+    const r = await api('GET', `/api/analytics/revenue-attribution?client_id=${state.currentClientId}&conv_id=${convId}`);
+    if (r.ok && r.revenue > 0) {
+      badge.textContent = `💰 導向 NT$ ${r.revenue.toLocaleString()} (${r.orders} 單)`;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch { badge.style.display = 'none'; }
+};
 
 // ─── BV 動作面板按鈕綁定 ───
 const initBvActions = () => {

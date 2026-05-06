@@ -1943,3 +1943,18 @@ body {
 .sla-yellow { color: #d97706; }
 .sla-red { color: #dc2626; animation: slaPulse 1.2s ease-in-out infinite; }
 @keyframes slaPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* 情緒置頂：怒火對話左邊紅閃條 */
+.conv-item.emotion-angry {
+  position: relative;
+  background: linear-gradient(90deg, rgba(239,68,68,0.04) 0%, transparent 50%);
+}
+.conv-item.emotion-angry::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #ef4444;
+  animation: angryPulse 1.4s ease-in-out infinite;
+}
+@keyframes angryPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

@@ -458,6 +458,56 @@ router.get('/funnel', (req, res) => {
   });
 });
 
+// ─── 業績歸因（對話 → 之後 7 天 BV 訂單）─────────────────
+// GET /api/analytics/revenue-attribution?client_id=N&conv_id=X
+//     回單一對話導向金額（chat header 用）
+// GET /api/analytics/revenue-attribution?client_id=N&user_id=X&days=30
+//     回某客服整月導向金額（agent ranking 用）
+router.get('/revenue-attribution', (req, res) => {
+  const clientId = resolveClientId(req);
+  if (!clientId) return res.status(400).json({ error: '需指定 client_id' });
+  const ATTRIB_WINDOW = 7 * 86400000; // 對話最後活動後 7 天內 BV 訂單算這對話的功勞
+
+  // 模式 1：單一對話
+  if (req.query.conv_id) {
+    const cid = parseInt(req.query.conv_id, 10);
+    const conv = db.prepare('SELECT id, customer_id, last_message_at, created_at FROM conversations WHERE id = ? AND client_id = ?').get(cid, clientId);
+    if (!conv || !conv.customer_id) return res.json({ ok: true, conversation_id: cid, revenue: 0, orders: 0 });
+    const start = conv.created_at || 0;
+    const end = (conv.last_message_at || Date.now()) + ATTRIB_WINDOW;
+    const r = db.prepare(`
+      SELECT COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS total
+      FROM orders WHERE client_id = ? AND customer_id = ?
+        AND ordered_at BETWEEN ? AND ?
+        AND status IN ('paid','shipped','delivered')
+    `).get(clientId, conv.customer_id, start, end);
+    return res.json({ ok: true, conversation_id: cid, revenue: r.total || 0, orders: r.cnt || 0, window_days: 7 });
+  }
+
+  // 模式 2：客服月度 ranking
+  const days = Math.min(parseInt(req.query.days || '30', 10), 90);
+  const since = Date.now() - days * 86400000;
+  // 該期間每個客服回過的對話 → 對話 customer 在期間 + 7 天內訂單金額
+  const rows = db.prepare(`
+    SELECT u.id AS user_id, u.username, u.display_name,
+           COUNT(DISTINCT c.id) AS conv_count,
+           COALESCE(SUM(o.total_amount), 0) AS revenue,
+           COUNT(DISTINCT o.id) AS order_count
+    FROM users u
+    LEFT JOIN messages m ON m.sender_id = CAST(u.id AS TEXT) AND m.direction = 'outbound' AND m.created_at >= ?
+    LEFT JOIN conversations c ON c.id = m.conversation_id AND c.client_id = ?
+    LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.client_id = ?
+      AND o.ordered_at BETWEEN m.created_at AND m.created_at + ?
+      AND o.status IN ('paid','shipped','delivered')
+    WHERE u.client_id = ? OR u.client_id IS NULL
+    GROUP BY u.id
+    HAVING conv_count > 0 OR revenue > 0
+    ORDER BY revenue DESC
+    LIMIT 50
+  `).all(since, clientId, clientId, ATTRIB_WINDOW, clientId);
+  res.json({ ok: true, days, agents: rows });
+});
+
 // ─── 熱門問題 AI 聚類（過去 N 天 inbound）GET /hot-topics?days=7 ───
 router.get('/hot-topics', async (req, res) => {
   const clientId = resolveClientId(req);
